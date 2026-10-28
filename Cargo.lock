@@ -724,7 +724,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "phasor"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "phasor-analysis",
  "phasor-core",
@@ -740,7 +740,7 @@ dependencies = [
 
 [[package]]
 name = "phasor-analysis"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "phasor-core",
  "phasor-generic",
@@ -751,11 +751,11 @@ dependencies = [
 
 [[package]]
 name = "phasor-core"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "phasor-exec"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "phasor-core",
  "phasor-model",
@@ -763,7 +763,7 @@ dependencies = [
 
 [[package]]
 name = "phasor-expr"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "criterion",
  "phasor-core",
@@ -775,14 +775,14 @@ dependencies = [
 
 [[package]]
 name = "phasor-generic"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "phasor-core",
 ]
 
 [[package]]
 name = "phasor-indicators"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "phasor-core",
  "phasor-generic",
@@ -790,14 +790,14 @@ dependencies = [
 
 [[package]]
 name = "phasor-model"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "phasor-core",
 ]
 
 [[package]]
 name = "phasor-py"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "numpy",
  "phasor-analysis",
@@ -816,7 +816,7 @@ dependencies = [
 
 [[package]]
 name = "phasor-records"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "phasor-core",
  "phasor-exec",
@@ -825,14 +825,14 @@ dependencies = [
 
 [[package]]
 name = "phasor-signals"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "phasor-core",
 ]
 
 [[package]]
 name = "phasor-sim"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "phasor-core",
  "phasor-exec",
