@@ -32,6 +32,7 @@ uv run python examples/live_scale_and_ops.py
 | Script | Scenario & Features Covered |
 | :--- | :--- |
 | [`factors_and_alphas.py`](./factors_and_alphas.py) | `Expression.compile` (`required_fields`, `uses_future`), full Qlib-style DSL (time-series, elementwise, `IndNeutralize`, `CSResi`, `CSRank`, `Scale`), built-in `alpha158()`, `alpha360()`, `wq101(all=True)`, `evaluate_batches`, `to_parquet`, and a **Cross-Sectional Market-Neutral Long/Short Strategy** with exposure analytics. |
+| [`factor_evaluation.py`](./factor_evaluation.py) | Score a factor without simulating it: IC, rank IC, Newey–West t, quantile returns, neutralization, redundancy against Alpha158, a permutation placebo, and `quantile_backtest`. Momentum, noise and a leaked forward return are the three checks. |
 | [`indicators_and_patterns.py`](./indicators_and_patterns.py) | All 8 Rust indicators (`ma`, `mstd`, `bbands`, `rsi`, `stoch`, `macd`, `atr`, `obv` + `true_range`), custom Python `IndicatorFactory`, live bar-by-bar `indicators.Stream`, and a **Multi-Window Chart Pattern Search Strategy** (`patterns.search`, `patterns.signals`). |
 
 ### 3. Execution Realism, Order Types, Risk Rules & Derivatives

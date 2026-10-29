@@ -13,6 +13,7 @@ members = [
   "crates/phasor-signals",
   "crates/phasor-analysis",
   "crates/phasor-expr",
+  "crates/phasor-factor",
 ]
 
 [workspace.package]
@@ -39,6 +40,7 @@ polars = { version = "0.46", default-features = false, features = [
   "sign",
 ] }
 phasor-analysis = { path = "crates/phasor-analysis", version = "0.2.0" }
+phasor-factor = { path = "crates/phasor-factor", version = "0.2.0" }
 phasor-core = { path = "crates/phasor-core", version = "0.2.0" }
 phasor-exec = { path = "crates/phasor-exec", version = "0.2.0" }
 phasor-generic = { path = "crates/phasor-generic", version = "0.2.0" }

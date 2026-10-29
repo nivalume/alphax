@@ -18,6 +18,7 @@ crate-type = ["cdylib", "rlib"]
 phasor-analysis = { workspace = true }
 phasor-core = { workspace = true }
 phasor-expr = { workspace = true }
+phasor-factor = { workspace = true }
 phasor-generic = { workspace = true }
 phasor-model = { workspace = true }
 phasor-records = { workspace = true }

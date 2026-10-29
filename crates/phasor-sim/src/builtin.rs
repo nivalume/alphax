@@ -85,7 +85,7 @@ impl Builtin {
             ("breakeven", self.breakeven),
             ("max_exposure", self.max_exposure),
         ] {
-            if !v.is_nan() && !(v.is_finite() && v >= 0.0) {
+            if !(v.is_nan() || v.is_finite() && v >= 0.0) {
                 return Err(Error::Invariant(format!(
                     "{name} must be a nonnegative number; got {v}"
                 )));
