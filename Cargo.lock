@@ -774,6 +774,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "phasor-factor"
+version = "0.2.0"
+dependencies = [
+ "phasor-analysis",
+ "phasor-core",
+]
+
+[[package]]
 name = "phasor-generic"
 version = "0.2.0"
 dependencies = [
@@ -804,6 +812,7 @@ dependencies = [
  "phasor-core",
  "phasor-exec",
  "phasor-expr",
+ "phasor-factor",
  "phasor-generic",
  "phasor-indicators",
  "phasor-model",

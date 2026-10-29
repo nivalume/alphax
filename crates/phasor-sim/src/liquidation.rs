@@ -280,7 +280,7 @@ fn tiers<'s, 'a>(
         let bound = inputs.tier_bounds.get(t, col);
         let last = t + 1 == len;
         let bad_rate = !(0.0..1.0).contains(&rate) || rate < last_rate;
-        let bad_bound = !last && !(bound.is_finite() && bound > last_bound);
+        let bad_bound = !(last || bound.is_finite() && bound > last_bound);
         if bad_rate || bad_bound {
             return Err(Error::Invariant(format!(
                 "maintenance_margin_tiers of column {col} must have increasing rates in [0, 1) \

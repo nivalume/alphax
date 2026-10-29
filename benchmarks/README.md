@@ -39,6 +39,16 @@ Python layer (`phasor-py`) is timed separately by `bench_python.py`, which
 covers what a caller pays around the loop — signal construction, the sweep
 wrapper, `Portfolio` reads — rather than the loop itself.
 
+Factor evaluation is timed by `factor_eval.py`: forward returns, cross-sectional
+IC on one thread and on four, quantile labels and returns, and `evaluate` on
+an Alpha158-scale panel (2520 × 100 by default, or 500 symbols). Throughput is
+millions of scored elements per second. It is not part of the baseline gate.
+
+```bash
+uv run python benchmarks/factor_eval.py
+uv run python benchmarks/factor_eval.py 2520 500 10
+```
+
 `from_signals` has its own workloads in `workloads_signals.tsv`. They exist for
 the regression gate: that loop is what the Python layer calls most.
 

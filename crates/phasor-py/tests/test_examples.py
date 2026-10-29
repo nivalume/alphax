@@ -121,6 +121,14 @@ def test_sweep_example_runs(capsys):
     assert "best:" in capsys.readouterr().out
 
 
+def test_factor_evaluation_example_runs(capsys):
+    runpy.run_path(ROOT / "examples/factor_evaluation.py", run_name="__main__")
+    out = capsys.readouterr().out
+    assert "momentum" in out
+    assert "p_value" in out
+    assert "\nok" in out
+
+
 def test_fetch_example_runs_through_fake_transport(tmp_path, monkeypatch, capsys):
     fake = Fake([[row(0), row(DAY)]])
     fetch_cached = data.fetch_cached

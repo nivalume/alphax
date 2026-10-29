@@ -1,0 +1,15 @@
+[package]
+name = "phasor-factor"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Factor evaluation for phasor: IC, quantiles, turnover, neutralization and placebo tests, without a simulation"
+
+[lints]
+workspace = true
+
+[dependencies]
+phasor-analysis = { workspace = true }
+phasor-core = { workspace = true }

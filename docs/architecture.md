@@ -13,7 +13,7 @@ phasor 是一个并行、因子驱动的向量化回测引擎：Rust 写的内�
 
 ## 总览：一次回测的数据流
 
-一次回测是一串对内存数组的函数调用，阶段之间没有 dataframe。行情先变成 `OhlcvPanel`（时间 × 标的），因子表达式和指标把它变成因子面板， 信号层把因子变成进场 / 出场布尔数组并展开到“参数 × 标的”的列轴上，模拟循环逐根 K 线调用撮合内核、写出记录，分析层再从记录重建账户、算指标、按列标签汇总。 状态快照让模拟可以在任意一根 K 线停下、之后接着跑。
+一次回测是一串对内存数组的函数调用，阶段之间没有 dataframe。行情先变成 `OhlcvPanel`（时间 × 标的），因子表达式和指标把它变成因子面板， 信号层把因子变成进场 / 出场布尔数组并展开到“参数 × 标的”的列轴上，模拟循环逐根 K 线调用撮合内核、写出记录，分析层再从记录重建账户、算指标、按列标签汇总。 状态快照让模拟可以在任意一根 K 线停下、之后接着跑。因子评估不走这条链：[`phasor-factor`](phasor-factor.md) 拿因子面板和前瞻收益直接打分，用来决定要不要把这个因子送进模拟。见 [因子评估](#factor-eval)。
 
 #### 示意 / 说明：数据流（中）、地基（下）与 Python 包（上）；框可以点击
 
@@ -360,7 +360,7 @@ sequenceDiagram
 ```mermaid
 flowchart TD
     subgraph ParsePhase["1. 解析 (Parse)"]
-        ExprStr['"Mean($close, 5) / $close"'] --> Pratt["Pratt 解析器"]
+        ExprStr["Mean($close, 5) / $close"] --> Pratt["Pratt 解析器"]
         Pratt --> AST["Expression 语法树"]
     end
 
@@ -390,6 +390,16 @@ flowchart TD
 7.  **分批输出。**`evaluate_batches`（[lib.rs:154](https://github.com/nivalume/phasor/blob/1d573df0430fa5cd3a2416300603c7147f3c6a13/crates/phasor-expr/src/lib.rs#L154)）每次取一批标的求值后交给调用方的 sink，峰值内存由批大小决定而不是面板大小；有截面算子时先整块算完再分批交出。
 
 窗口统计（均值、标准差、相关、回归、偏度峰度……）用增量累加器，每个核心都和逐窗重算在 1e-9 内对过；Quantile / Med / Rank 用只存整数位置的有序结构，和排序结果逐位相同。 内置因子集：`alpha158()`、`alpha360()`（Qlib 的表达式）和 WorldQuant 101（`wq101()` 是只读量价的 82 个，`wq101_all()` 是全部 101 个）。 `ComputeBackend` 有两个实现：默认的 `NativeBackend`，和 `polars` feature 下的 `PolarsBackend`（只翻译 Qlib 的算子，用于独立交叉验证）。见 [phasor-expr](phasor-expr.md)。
+
+<a id="factor-eval"></a>
+
+## 因子评估：phasor-factor
+
+表达式引擎回答“这个因子的值是什么”。评估回答“这个值能不能预测后面的收益”，而且不经过模拟。
+
+模拟判断的是**策略**：信号进撮合，记录出来，指标从记录重建。因子评估判断的是策略所依据的**因子**，直接对前瞻收益打分。前瞻收益故意读了因子所在那根 K 线之后的价格；由它算出的 IC、分位收益、Fama–MacBeth 系数和安慰剂 p 值描述因子，不能再当作信号送回模拟。分位标签、换手、秩自相关、中性化和因子之间的相关矩阵只读因子自己的那根 K 线。
+
+截面置换和循环平移给出一个不依赖正态假设的 p 值。零假设下的 IC 由同一套 `(seed, draw, row)` 的计数器随机数生成，线程数不改变任何一位。多个因子一起试过之后，Python 里的 `adjust_pvalues` 用 Bonferroni、Holm 或 Benjamini–Hochberg 校正这些 p 值。见 [phasor-factor](phasor-factor.md)。
 
 <a id="indicators"></a>
 

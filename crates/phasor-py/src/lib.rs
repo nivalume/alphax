@@ -23,7 +23,8 @@
 //! batched evaluation. Event studies, overfitting statistics, labels, random
 //! signals and synthetic prices are in [`research`]; the indicator sweep and
 //! streams in `indicators`; signal tools in `signal_fns`; rolling
-//! metrics and drawdown records in `returns_fns`.
+//! metrics and drawdown records in `returns_fns`. Forward returns,
+//! information coefficients, quantile groups and turnover are in `factor_eval`.
 //!
 //! # Two things worth knowing before using it
 //!
@@ -46,6 +47,7 @@ pub mod array;
 mod callbacks;
 pub mod data;
 pub mod expr;
+mod factor_eval;
 mod indicators;
 pub mod params;
 pub mod parse;
@@ -2945,6 +2947,7 @@ fn _phasor(m: &Bound<'_, PyModule>) -> PyResult<()> {
     indicators::register(m)?;
     signal_fns::register(m)?;
     returns_fns::register(m)?;
+    factor_eval::register(m)?;
     m.add(
         "__doc__",
         "Rust engine for phasor. Use the `phasor` package, not this.",

@@ -85,7 +85,7 @@ rather than only consuming them. The factor DSL is implemented through
 Alpha158 and Alpha360, and the Python package provides the external
 market-data boundary.
 
-### Factor evaluation
+### Computing factors
 
 `FactorSet::evaluate` returns every factor as one `f64` matrix. Intermediates
 are released after their last use, so on Alpha158 at 2520×500 nearly all of
@@ -101,6 +101,29 @@ those nodes into stages: symbols in parallel within a stage, one
 cross-sectional pass over every symbol between stages. A set with a
 cross-sectional operator needs the whole panel before it can hand anything
 over in batches.
+
+### Evaluating factors
+
+Computing a factor and deciding whether it predicts anything are different
+questions. `phasor.factor_eval` answers the second one without a simulation:
+forward returns, cross-sectional IC and rank IC, a Newey–West t-statistic,
+quantile portfolios, neutralization and a seeded placebo. A forward return
+reads the future on purpose. It is a score, not a signal, and it is not fed
+back into the engine.
+
+```python
+report = phasor.factor_eval.evaluate(
+    {"momentum": momentum},
+    close,
+    horizons=(1, 5, 10, 20),
+)
+report.summary()    # IC, rank IC, Newey–West t, p-value
+report.decay("momentum")
+```
+
+`examples/factor_evaluation.py` runs that path on a synthetic universe,
+including a noise factor and a leaked forward return, and checks the three
+come out in that order.
 
 ## Install
 
