@@ -105,17 +105,20 @@ def _one_sample(pred: np.ndarray, fwd: np.ndarray, quantiles: int) -> dict:
     group = _groups(pred, quantiles)
     means = {}
     counts = {}
+    levels = {}
     for g in range(quantiles):
         k = group == g
         if k.any():
             means[g + 1] = float(fwd[k].mean())
             counts[g + 1] = int(k.sum())
+            levels[g + 1] = float(pred[k].mean())
     return {
         "correlation": corr,
         "rank_correlation": _corr(_ranks(pred), _ranks(fwd)),
         "r_squared": corr * corr,
         "quantile_returns": means,
         "quantile_counts": counts,
+        "quantile_predictions": levels,
     }
 
 
@@ -139,7 +142,8 @@ def power(predictions: Any, forward_returns: Any, *, quantiles: int = 5, axis: s
     returns' variance the predictions explain linearly; 0.05 out of sample is
     exceptional for a return forecast), the mean return of each of
     ``quantiles`` groups of predictions (``quantile_returns``, from the most
-    bearish), their ``quantile_counts``, and ``monotonicity``: the rank
+    bearish), their ``quantile_counts`` and mean prediction (``quantile_predictions``), and
+    ``monotonicity``: the rank
     correlation between the group and its return, 1 when each group did better
     than the one below. Tied predictions share a group, so a position of -1, 0
     or 1 gives three groups whatever ``quantiles`` is.
@@ -180,6 +184,10 @@ def power(predictions: Any, forward_returns: Any, *, quantiles: int = 5, axis: s
         "r_squared": mean_of("r_squared"),
         "quantile_returns": means,
         "quantile_counts": {g: int(sum(r["quantile_counts"].get(g, 0) for r in rows)) for g in groups},
+        "quantile_predictions": {
+            g: float(np.mean([r["quantile_predictions"][g] for r in rows if g in r["quantile_predictions"]]))
+            for g in groups
+        },
         "monotonicity": _monotonicity(means),
         "correlation_std": std,
         "information_ratio": float(finite.mean() / std) if finite.size > 1 and std > 0 else float("nan"),

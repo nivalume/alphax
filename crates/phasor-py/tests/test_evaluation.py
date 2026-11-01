@@ -135,6 +135,7 @@ def test_tied_predictions_share_a_group():
     found = predictions.power(pos, fwd, quantiles=5)
     assert len(found["quantile_returns"]) == 3
     assert sorted(found["quantile_counts"].values()) == [100, 100, 100]
+    assert sorted(found["quantile_predictions"].values()) == [-1.0, 0.0, 1.0]
     assert found["monotonicity"] == pytest.approx(1.0)
 
 
