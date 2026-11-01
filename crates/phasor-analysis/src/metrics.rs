@@ -391,6 +391,51 @@ pub fn cond_value_at_risk(returns: &[f64], cutoff: f64) -> f64 {
     tail.iter().sum::<f64>() / tail.len() as f64
 }
 
+/// Hit ratio: the share of bars with a gain among the bars that moved.
+///
+/// A bar with a return of exactly zero -- no position, or a flat bar -- is
+/// counted on neither side: a strategy that is out of the market most of the
+/// time is judged on the bars it took a risk on. `NaN` bars are skipped.
+/// `NaN` when no bar moved.
+#[must_use]
+pub fn hit_ratio(returns: &[f64]) -> f64 {
+    let mut gains = 0usize;
+    let mut moved = 0usize;
+    for &r in returns {
+        if r > 0.0 {
+            gains += 1;
+            moved += 1;
+        } else if r < 0.0 {
+            moved += 1;
+        }
+    }
+    if moved == 0 {
+        return f64::NAN;
+    }
+    gains as f64 / moved as f64
+}
+
+/// Return concentration: the share of all the gains made on the best
+/// `cutoff` of bars.
+///
+/// The bars with a return are sorted best first; the best
+/// `floor((n - 1) * cutoff) + 1` of them -- the count [`cond_value_at_risk`]
+/// takes from the other end -- contribute their gains, over the sum of every
+/// positive return. Near `cutoff` when the gains are spread evenly, near 1
+/// when a handful of bars made the whole result. `NaN` when nothing gained.
+#[must_use]
+pub fn return_concentration(returns: &[f64], cutoff: f64) -> f64 {
+    let mut live: Vec<f64> = returns.iter().copied().filter(|r| !r.is_nan()).collect();
+    let total: f64 = live.iter().filter(|r| **r > 0.0).sum();
+    if live.is_empty() || total <= 0.0 {
+        return f64::NAN;
+    }
+    live.sort_by(|a, b| b.total_cmp(a));
+    let count = ((live.len() - 1) as f64 * cutoff.clamp(0.0, 1.0)) as usize + 1;
+    let best: f64 = live[..count].iter().filter(|r| **r > 0.0).sum();
+    best / total
+}
+
 #[cfg(test)]
 #[allow(
     clippy::float_cmp,
@@ -530,5 +575,30 @@ mod tests {
     #[test]
     fn sortino_is_infinite_when_nothing_went_down() {
         assert_eq!(sortino_ratio(&[0.1, 0.2], 365.0, 0.0), f64::INFINITY);
+    }
+
+    #[test]
+    fn hit_ratio_counts_only_the_bars_that_moved() {
+        assert!(close_to(
+            hit_ratio(&[0.1, -0.1, 0.0, f64::NAN, 0.2]),
+            2.0 / 3.0
+        ));
+        assert!(hit_ratio(&[0.0, f64::NAN]).is_nan());
+        assert_eq!(hit_ratio(&[0.01, 0.02]), 1.0);
+    }
+
+    #[test]
+    fn return_concentration_is_the_best_bars_share_of_the_gains() {
+        // 21 bars: the best one (cutoff 5% of 20 is 1, plus 1 = 2 bars) ...
+        let mut r = vec![0.01; 19];
+        r.push(0.5);
+        r.push(-0.2);
+        // ... the two best are 0.5 and 0.01, of 0.5 + 19 * 0.01 of gains.
+        assert!(close_to(return_concentration(&r, 0.05), 0.51 / 0.69));
+        // Gains spread evenly: the share is the share of bars.
+        let even = vec![0.01; 101];
+        assert!(close_to(return_concentration(&even, 0.05), 6.0 / 101.0));
+        assert!(return_concentration(&[-0.1, 0.0], 0.05).is_nan());
+        assert!(return_concentration(&[], 0.05).is_nan());
     }
 }

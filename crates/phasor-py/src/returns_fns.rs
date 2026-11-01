@@ -36,6 +36,8 @@ pub const SOLO: &[&str] = &[
     "tail_ratio",
     "value_at_risk",
     "cond_value_at_risk",
+    "hit_ratio",
+    "return_concentration",
 ];
 
 /// Metrics that read a benchmark too.
@@ -79,6 +81,8 @@ pub fn scalar(name: &str, r: &[f64], b: Option<&[f64]>, o: Opts) -> PyResult<f64
         "tail_ratio" => m::tail_ratio(r),
         "value_at_risk" => m::value_at_risk(r, o.cutoff),
         "cond_value_at_risk" => m::cond_value_at_risk(r, o.cutoff),
+        "hit_ratio" => m::hit_ratio(r),
+        "return_concentration" => m::return_concentration(r, o.cutoff),
         paired if PAIRED.contains(&paired) => {
             let b = b.ok_or_else(|| need_benchmark(paired))?;
             match paired {
@@ -123,6 +127,8 @@ pub fn rolling(
         "tail_ratio" => rl::rolling_tail_ratio(r, w, p),
         "value_at_risk" => rl::rolling_value_at_risk(r, w, p, o.cutoff),
         "cond_value_at_risk" => rl::rolling_cond_value_at_risk(r, w, p, o.cutoff),
+        "hit_ratio" => rl::rolling_hit_ratio(r, w, p),
+        "return_concentration" => rl::rolling_return_concentration(r, w, p, o.cutoff),
         paired if PAIRED.contains(&paired) => {
             let b = b.ok_or_else(|| need_benchmark(paired))?;
             match paired {

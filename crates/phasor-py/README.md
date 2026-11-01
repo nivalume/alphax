@@ -612,6 +612,26 @@ robust.pbo_cscv(r, n_splits=16)
 robust.deflated_sharpe(r[:, best], per_period_sharpes)
 ```
 
+Judging a strategy past its Sharpe:
+
+```python
+from phasor import allocation, predictions, returns, robust, validation
+
+returns.metric(r, "hit_ratio")                         # share of moving bars that gained
+returns.metric(r, "return_concentration", cutoff=0.05) # share of gains from the best 5% of bars
+returns.stats(r)["max_drawdown_recovery"]              # bars from the deepest valley back to its peak
+robust.bootstrap(r, n=1000, block=5)                   # drawdown and Sharpe over resampled paths
+
+validation.position_delay_test(held, asset_returns, delays=(0, 1, 2, 3), cost=0.0007)
+validation.permutation_test(held, asset_returns, statistic="sharpe", block=6)   # 2-D: one shuffle for all assets
+
+predictions.power(signal, forward_returns)                        # R², quantile returns, monotonicity
+predictions.power(factor, forward_returns, axis="cross_section")  # a factor's IC and ICIR
+predictions.decay(signal, close, horizons=(1, 4, 16))             # return in the signal's direction, h bars on
+
+allocation.marginal_contribution(book_returns, candidate)  # correlations and the book's Sharpe gain
+```
+
 `events` and `labels` read the future on purpose and must never feed a
 simulation. `signals` and `synthetic` draw from `(seed, row, col)`, so a seed
 reproduces and a column does not change when others are added. Sharpe ratios

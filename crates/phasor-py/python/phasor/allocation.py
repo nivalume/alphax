@@ -32,6 +32,7 @@ __all__ = [
     "from_riskfolio",
     "from_weights",
     "inverse_volatility",
+    "marginal_contribution",
     "max_sharpe",
     "min_variance",
     "rebalance_mask",
@@ -272,3 +273,95 @@ def universal_weights(close: Any, algo: str = "OLMAR", **kwargs: Any) -> np.ndar
     c = _close(close)
     result = getattr(algos, algo)(**kwargs).run(pd.DataFrame(c))
     return np.asarray(result.weights, dtype=float)
+
+
+def _mask(mask: Any, n: int, name: str) -> np.ndarray:
+    if mask is None:
+        return np.ones(n, dtype=bool)
+    m = np.asarray(mask, dtype=bool)
+    if m.shape != (n,):
+        raise ValueError(f"{name} must be a boolean mask of {n} rows; got shape {m.shape}")
+    return m
+
+
+def marginal_contribution(
+    book: Any,
+    candidate: Any,
+    *,
+    fit: Any = None,
+    rows: Any = None,
+    ann_factor: float = 365.0,
+) -> dict[str, Any]:
+    """What adding a strategy does to a book of strategies already run.
+
+    ``book`` is the strategies' per-bar returns, ``(bars, k)`` (``k`` may be
+    0, or ``None`` for an empty book); ``candidate`` is ``(bars,)``. Each
+    strategy is scaled to unit volatility over the ``fit`` rows (a boolean
+    mask; every row by default) and the book is their equal-weight average,
+    so a strategy counts by its risk, not its leverage. Over the ``rows``
+    mask (every row by default) it returns:
+
+    - ``correlations``: the candidate's correlation with each strategy, and
+      ``max_abs_correlation``, the largest in size;
+    - ``correlation_to_book``: with the book as a whole;
+    - ``candidate_sharpe``, ``book_sharpe`` and ``combined_sharpe`` (the book
+      with the candidate as one more equal member), annualized, and ``gain``
+      = combined minus book. With an empty book the gain is the candidate's
+      own Sharpe.
+
+    A strategy that is good alone but adds nothing to the book -- high
+    correlation, no gain -- is a copy of what is already run. Missing returns
+    count as zero (the strategy was flat).
+    """
+    from . import returns as _returns
+
+    cand = np.nan_to_num(np.asarray(candidate, dtype=np.float64).ravel())
+    n = cand.size
+    if book is None:
+        b = np.zeros((n, 0))
+    else:
+        b = np.nan_to_num(np.asarray(book, dtype=np.float64))
+        b = b[:, None] if b.ndim == 1 else b
+    if b.shape[0] != n:
+        raise ValueError(f"book and candidate differ in length: {b.shape[0]} and {n}")
+    fit_rows = _mask(fit, n, "fit")
+    eval_rows = _mask(rows, n, "rows")
+
+    def scaled(x: np.ndarray) -> np.ndarray:
+        sd = x[fit_rows].std(axis=0, ddof=1) if fit_rows.sum() > 1 else np.full(x.shape[1:], np.nan)
+        sd = np.where(np.isfinite(sd) & (sd > 0), sd, np.nan)
+        return np.nan_to_num(x / sd)
+
+    def sharpe(x: np.ndarray) -> float:
+        return float(_returns.metric(x[eval_rows], "sharpe_ratio", ann_factor=ann_factor))
+
+    def corr(x: np.ndarray, y: np.ndarray) -> float:
+        x, y = x[eval_rows], y[eval_rows]
+        if x.size < 2 or x.std() == 0 or y.std() == 0:
+            return float("nan")
+        return float(np.corrcoef(x, y)[0, 1])
+
+    c = scaled(cand[:, None])[:, 0]
+    members = scaled(b)
+    k = members.shape[1]
+    correlations = [corr(c, members[:, j]) for j in range(k)]
+    finite = [abs(v) for v in correlations if np.isfinite(v)]
+    candidate_sharpe = sharpe(cand)
+    if k == 0:
+        return {
+            "correlations": [], "max_abs_correlation": float("nan"), "correlation_to_book": float("nan"),
+            "candidate_sharpe": candidate_sharpe, "book_sharpe": float("nan"),
+            "combined_sharpe": candidate_sharpe, "gain": candidate_sharpe,
+        }
+    book_returns = members.mean(axis=1)
+    combined = (members.sum(axis=1) + c) / (k + 1)
+    book_sharpe, combined_sharpe = sharpe(book_returns), sharpe(combined)
+    return {
+        "correlations": correlations,
+        "max_abs_correlation": max(finite) if finite else float("nan"),
+        "correlation_to_book": corr(c, book_returns),
+        "candidate_sharpe": candidate_sharpe,
+        "book_sharpe": book_sharpe,
+        "combined_sharpe": combined_sharpe,
+        "gain": combined_sharpe - book_sharpe,
+    }

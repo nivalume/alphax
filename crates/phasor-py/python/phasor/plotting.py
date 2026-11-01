@@ -7,6 +7,13 @@ save; ``index`` puts the bars' times on the x axis::
     phasor.plotting.orders(pf, 0, index=dates)
     phasor.plotting.drawdowns(pf, 0)
     phasor.plotting.rolling(pf, "sharpe_ratio", 63)
+
+A return series with no portfolio behind it (a sum of strategies, another
+engine's curve) is drawn by ``returns``, with its periods shaded; ``bars``
+draws a small labelled bar chart (a delay curve, quantile returns)::
+
+    phasor.plotting.returns(r, index=dates, segments={"train": (0, 500), "test": (500, None)})
+    phasor.plotting.bars({0: 1.2, 1: 1.1, 2: 0.4}, title="Sharpe by delay")
 """
 
 from __future__ import annotations
@@ -15,7 +22,7 @@ from typing import Any
 
 import numpy as np
 
-__all__ = ["drawdowns", "orders", "rolling", "value"]
+__all__ = ["bars", "drawdowns", "orders", "returns", "rolling", "value"]
 
 _UP, _DOWN, _LINE, _MUTED = "#2a9d8f", "#d1495b", "#3d5a80", "#98a6b3"
 
@@ -101,4 +108,57 @@ def rolling(pf: Any, metric: str, window: int, *, index: Any = None, title: str 
     x = _x(r.shape[0], index)
     fig = go.Figure([go.Scatter(x=x, y=r[:, a], name=f"account {a}") for a in range(r.shape[1])])
     fig.update_layout(title=title or f"rolling {metric} ({window} bars)")
+    return fig
+
+
+_SEGMENT_COLORS = ("#3d5a80", "#e09f3e", "#2a9d8f", "#9e2a2b", "#98a6b3")
+
+
+def returns(returns: Any, *, index: Any = None, segments: Any = None, title: str | None = None,
+            names: Any = None) -> Any:
+    """The value ``returns`` compound to, and its drawdown below it.
+
+    ``returns`` is ``(bars,)`` or ``(bars, series)``; ``names`` labels the
+    series. ``segments`` maps a name to ``(start, stop)`` row positions
+    (``stop`` ``None`` for the end) and shades each period on both rows, so a
+    train, validation and test period read at a glance. Missing returns leave
+    the value where it was.
+    """
+    go = _go()
+    from plotly.subplots import make_subplots
+
+    r = np.asarray(returns, dtype=np.float64)
+    r = r[:, None] if r.ndim == 1 else r
+    x = _x(len(r), index)
+    labels = list(names) if names is not None else [f"series {k}" for k in range(r.shape[1])]
+    v = np.cumprod(1.0 + np.nan_to_num(r), axis=0)
+    dd = v / np.fmax.accumulate(v, axis=0) - 1
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.7, 0.3], vertical_spacing=0.03)
+    for k in range(r.shape[1]):
+        color = _SEGMENT_COLORS[k % len(_SEGMENT_COLORS)] if r.shape[1] > 1 else _LINE
+        fig.add_trace(go.Scatter(x=x, y=v[:, k], name=labels[k], line=dict(color=color)), row=1, col=1)
+        fig.add_trace(go.Scatter(x=x, y=dd[:, k], name=f"{labels[k]} drawdown", fill="tozeroy",
+                                 line=dict(color=_DOWN if r.shape[1] == 1 else color), showlegend=False),
+                      row=2, col=1)
+    for k, (name, (start, stop)) in enumerate((segments or {}).items()):
+        a = int(start)
+        b = len(r) - 1 if stop is None else min(int(stop), len(r)) - 1
+        if b <= a:
+            continue
+        fig.add_vrect(x0=x[a], x1=x[b], fillcolor=_SEGMENT_COLORS[k % len(_SEGMENT_COLORS)], opacity=0.08,
+                      line_width=0, annotation_text=name, annotation_position="top left", row="all", col=1)
+    fig.update_yaxes(tickformat=".0%", row=2, col=1)
+    fig.update_layout(title=title or "value", hovermode="x unified")
+    return fig
+
+
+def bars(values: Any, *, title: str | None = None, x_title: str | None = None, y_title: str | None = None) -> Any:
+    """A bar for each ``label: value`` of a mapping, green above zero and
+    red below: a delay curve, the returns of quantile groups."""
+    go = _go()
+    labels = [str(k) for k in values]
+    heights = np.asarray([float(v) for v in values.values()], dtype=np.float64)
+    colors = [_UP if h >= 0 else _DOWN for h in np.nan_to_num(heights)]
+    fig = go.Figure(go.Bar(x=labels, y=heights, marker_color=colors))
+    fig.update_layout(title=title, xaxis_title=x_title, yaxis_title=y_title, showlegend=False)
     return fig

@@ -37,6 +37,7 @@ __all__ = [
     "from_masks",
     "from_ranges",
     "permutation_test",
+    "position_delay_test",
     "purged_kfold",
     "rolling",
     "shuffled_prices",
@@ -481,16 +482,32 @@ def permutation_test(
     keeps short-range autocorrelation), which keeps the positions' timing and
     the returns' distribution but breaks their alignment.
 
+    Both may instead be ``(bars, assets)``: the strategy's return at ``t`` is
+    then the sum over assets of ``positions * returns``, and every asset's
+    returns are shuffled by the same permutation of bars, so their
+    co-movement survives and only the timing is tested.
+
     ``statistic`` is ``"total"`` (sum), ``"mean"``, ``"sharpe"`` (mean / std)
     or a function of the strategy's returns.
 
     Returns ``observed``, the ``null`` distribution and ``p_value`` =
     ``(1 + #null >= observed) / (n + 1)``.
     """
-    pos = np.asarray(positions, dtype=float).ravel()
-    ret = np.nan_to_num(np.asarray(returns, dtype=float).ravel())
-    if pos.shape != ret.shape:
-        raise ValueError(f"positions and returns differ in length: {pos.size} and {ret.size}")
+    pos = np.asarray(positions, dtype=float)
+    ret = np.nan_to_num(np.asarray(returns, dtype=float))
+    if pos.ndim == 2 or ret.ndim == 2:
+        if pos.shape != ret.shape or pos.ndim != 2:
+            raise ValueError(f"positions and returns must have one shape; got {pos.shape} and {ret.shape}")
+
+        def pnl(r: np.ndarray) -> np.ndarray:
+            return (pos * r).sum(axis=1)
+    else:
+        pos, ret = pos.ravel(), ret.ravel()
+        if pos.shape != ret.shape:
+            raise ValueError(f"positions and returns differ in length: {pos.size} and {ret.size}")
+
+        def pnl(r: np.ndarray) -> np.ndarray:
+            return pos * r
     n = _int("n", n, 1)
     block = _int("block", block, 1)
     stats = {
@@ -501,15 +518,57 @@ def permutation_test(
     f = stats.get(statistic) if isinstance(statistic, str) else statistic
     if f is None:
         raise ValueError(f"statistic must be one of {sorted(stats)} or a function")
-    observed = float(f(pos * ret))
+    observed = float(f(pnl(ret)))
     rng = np.random.default_rng(seed)
-    blocks = [ret[i:i + block] for i in range(0, ret.size, block)]
+    blocks = [ret[i:i + block] for i in range(0, len(ret), block)]
     null = np.empty(n)
     for k in range(n):
         shuffled = np.concatenate([blocks[j] for j in rng.permutation(len(blocks))])
-        null[k] = f(pos * shuffled)
+        null[k] = f(pnl(shuffled))
     p = (1 + int((null >= observed).sum())) / (n + 1)
     return {"observed": observed, "null": null, "p_value": p}
+
+
+def position_delay_test(
+    positions: Any,
+    returns: Any,
+    delays: Iterable[int] = (0, 1, 2, 3),
+    *,
+    cost: float = 0.0,
+    metric: str = "sharpe_ratio",
+    ann_factor: float = 365.0,
+) -> dict[int, float]:
+    """The strategy's metric when its positions arrive ``d`` bars late, for
+    each ``d`` in ``delays``: ``{d: value}``.
+
+    ``positions[t]`` is the exposure held over ``returns[t]``, as in
+    :func:`permutation_test`, ``(bars,)`` or ``(bars, assets)``; a delay of
+    ``d`` holds ``positions[t - d]`` instead (nothing before). The account's
+    return is the sum over assets of position times return, less ``cost``
+    times the change in each position. ``metric`` is a
+    :mod:`phasor.returns` metric. This is :func:`signal_delay_test` for a
+    caller that has the positions rather than a ``@phasor.strategy``: an edge
+    that halves at one bar of delay lives in the bar it was decided on, and
+    one that grows with delay is trading too early.
+    """
+    from . import returns as _returns
+
+    pos = np.nan_to_num(np.asarray(positions, dtype=float))
+    ret = np.nan_to_num(np.asarray(returns, dtype=float))
+    if pos.shape != ret.shape or pos.ndim not in (1, 2):
+        raise ValueError(f"positions and returns must have one shape, 1-D or 2-D; got {pos.shape} and {ret.shape}")
+    if pos.ndim == 1:
+        pos, ret = pos[:, None], ret[:, None]
+    out = {}
+    for d in delays:
+        d = _int("delay", d, 0)
+        held = np.zeros_like(pos)
+        if d < len(pos):
+            held[d:] = pos[: len(pos) - d]
+        traded = np.abs(np.diff(held, axis=0, prepend=0.0)).sum(axis=1)
+        account = (held * ret).sum(axis=1) - cost * traded
+        out[d] = float(_returns.metric(account, metric, ann_factor=ann_factor))
+    return out
 
 
 def signal_delay_test(
