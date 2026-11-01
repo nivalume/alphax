@@ -555,8 +555,8 @@ impl PyPortfolio {
     /// `(n_rows, n_accounts)`: one of `total_return`, `annualized_return`,
     /// `annualized_volatility`, `max_drawdown`, `calmar_ratio`,
     /// `omega_ratio`, `sharpe_ratio`, `downside_risk`, `sortino_ratio`,
-    /// `tail_ratio`, `value_at_risk`, `cond_value_at_risk`, or against
-    /// buy-and-hold `information_ratio`, `beta`, `alpha`, `capture`,
+    /// `tail_ratio`, `value_at_risk`, `cond_value_at_risk`, `hit_ratio`,
+    /// `return_concentration`, or against buy-and-hold `information_ratio`, `beta`, `alpha`, `capture`,
     /// `up_capture`, `down_capture`. `min_periods` (a full window by
     /// default) counts bars with a return.
     #[pyo3(signature = (metric, window, *, min_periods = None, required_return = 0.0, cutoff = 0.05, ddof = 1))]

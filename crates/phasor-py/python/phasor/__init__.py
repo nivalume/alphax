@@ -120,7 +120,7 @@ __all__ = [
     "factors",
     "crossed_above",
 ]
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 
 def _matrix(value: Any, name: str) -> np.ndarray:

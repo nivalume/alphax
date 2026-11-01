@@ -12,6 +12,8 @@ estimates. These follow Bailey & López de Prado:
   luck-only maximum instead of against zero.
 - :func:`pbo_cscv` — how often the in-sample winner of a sweep lands at or
   below the median out of sample.
+- :func:`bootstrap` — the spread of a metric over resampled orderings of the
+  same returns: the history is one path, and its maximum drawdown one draw.
 
 **Sharpe ratios here are per period**: mean over the ``ddof=1`` standard
 deviation of the bar returns, no risk-free rate, not annualized. That is not
@@ -31,7 +33,7 @@ import numpy as np
 from . import _phasor
 from ._columns import columns, per_column
 
-__all__ = ["deflated_sharpe", "expected_max_sharpe", "pbo_cscv", "probabilistic_sharpe"]
+__all__ = ["bootstrap", "deflated_sharpe", "expected_max_sharpe", "pbo_cscv", "probabilistic_sharpe"]
 
 
 def probabilistic_sharpe(returns: Any, benchmark_sr: float = 0.0) -> Any:
@@ -84,3 +86,53 @@ def pbo_cscv(perf: Any, n_splits: int = 16) -> float:
     """
     arr, _ = columns(perf, "perf")
     return _phasor.pbo_cscv(arr, int(n_splits))
+
+
+def bootstrap(
+    returns: Any,
+    *,
+    n: int = 1000,
+    block: int = 1,
+    seed: int = 0,
+    metrics: tuple[str, ...] = ("max_drawdown", "sharpe_ratio"),
+    quantiles: tuple[float, ...] = (0.01, 0.05, 0.5, 0.95),
+    ann_factor: float = 365.0,
+) -> dict[str, dict[str, Any]]:
+    """Each metric of ``returns`` and its distribution over ``n`` resampled
+    paths: ``{metric: {"observed", "quantiles": {q: value}, "values"}}``.
+
+    A path draws blocks of ``block`` consecutive bars, with replacement, until
+    it is as long as the series (``block > 1`` keeps short-range
+    autocorrelation). The history's maximum drawdown is one draw from this
+    distribution; its low quantiles (drawdowns are negative: 0.05, 0.01) are
+    the worse paths the same returns could have taken. Metric names are
+    those of :mod:`phasor.returns`, computed per path in one call; missing
+    bars are dropped first. Unlike the rest of this module, the metrics here
+    are the annualized ones of :mod:`phasor.returns`.
+    """
+    from . import returns as _returns
+
+    r = np.asarray(returns, dtype=np.float64).ravel()
+    r = r[~np.isnan(r)]
+    if n < 1 or block < 1:
+        raise ValueError(f"n and block must be at least 1; got {n} and {block}")
+    out: dict[str, dict[str, Any]] = {}
+    if r.size < 2:
+        for name in metrics:
+            out[name] = {"observed": float("nan"), "quantiles": {q: float("nan") for q in quantiles},
+                         "values": np.full(n, np.nan)}
+        return out
+    b = min(block, r.size)
+    rng = np.random.default_rng(seed)
+    starts = rng.integers(0, r.size - b + 1, size=(n, -(-r.size // b)))
+    take = (starts[:, :, None] + np.arange(b)[None, None, :]).reshape(n, -1)[:, : r.size]
+    paths = np.asfortranarray(r[take].T)
+    for name in metrics:
+        values = np.asarray(_returns.metric(paths, name, ann_factor=ann_factor), dtype=np.float64)
+        finite = values[np.isfinite(values)]
+        out[name] = {
+            "observed": float(_returns.metric(r, name, ann_factor=ann_factor)),
+            "quantiles": {q: float(np.quantile(finite, q)) if finite.size else float("nan") for q in quantiles},
+            "values": values,
+        }
+    return out

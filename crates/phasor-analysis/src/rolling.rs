@@ -123,6 +123,17 @@ rolling_solo!(
     metrics::tail_ratio
 );
 rolling_solo!(
+    /// Hit ratio over each trailing window.
+    rolling_hit_ratio,
+    metrics::hit_ratio
+);
+rolling_solo!(
+    /// Return concentration over each trailing window.
+    rolling_return_concentration,
+    metrics::return_concentration,
+    cutoff: f64
+);
+rolling_solo!(
     /// Value at risk over each trailing window.
     rolling_value_at_risk,
     metrics::value_at_risk,

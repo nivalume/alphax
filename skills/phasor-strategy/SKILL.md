@@ -76,7 +76,11 @@ Do these before reporting a number; report the ones you ran.
 | Out of sample? | `phasor.validation.walk_forward(fn, n, validation.rolling(n, train, test))` or `validation.calendar(index, "M", train=12)` |
 | Luck? | `validation.permutation_test(positions, returns)`, `validation.shuffled_test(fn, close)` |
 | Selection bias over many trials? | `phasor.robust.deflated_sharpe(returns, trial_sharpes)`, `robust.pbo_cscv(perf)` |
-| Reading its own bar? | `validation.signal_delay_test(strategy, data, params, delays=(0, 1, 2))` |
+| Reading its own bar? | `validation.signal_delay_test(strategy, data, params, delays=(0, 1, 2))`, or with positions only `validation.position_delay_test(positions, returns)` |
+| Does the signal predict, and for how long? | `predictions.power(signal, forward_returns)` (R², quantile returns), `predictions.decay(signal, close)` |
+| Is the drawdown just the luck of the order? | `robust.bootstrap(returns, block=...)`; `returns.stats(r)["max_drawdown_recovery"]` |
+| Made on a few bars? | `returns.metric(r, "return_concentration")`, `returns.metric(r, "hit_ratio")` |
+| New to the book? | `allocation.marginal_contribution(book, candidate)` |
 
 A Sharpe that collapses from delay 0 to delay 1 is a look-ahead, not an edge.
 

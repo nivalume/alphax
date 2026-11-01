@@ -38,6 +38,8 @@ _SOLO = (
     "tail_ratio",
     "value_at_risk",
     "cond_value_at_risk",
+    "hit_ratio",
+    "return_concentration",
 )
 _PAIRED = ("information_ratio", "beta", "alpha", "capture", "up_capture", "down_capture")
 
@@ -95,9 +97,12 @@ def drawdowns(returns: Any) -> dict:
 
 def stats(returns: Any, *, benchmark: Any = None, ann_factor: float = 365.0, risk_free: float = 0.0,
           required_return: float = 0.0, cutoff: float = 0.05) -> dict:
-    """Every metric, and the drawdown count and longest drawdown, per column:
-    the statistics table of a series with no trades behind it. With a
-    benchmark, its metrics too."""
+    """Every metric, and the drawdown count, the longest drawdown and the
+    deepest drawdown's recovery, per column: the statistics table of a series
+    with no trades behind it. With a benchmark, its metrics too.
+
+    ``max_drawdown_recovery`` is the bars from the deepest drawdown's valley
+    back to its peak, ``NaN`` while it has not recovered."""
     r, one_d = columns(returns, "returns")
     kw = dict(ann_factor=ann_factor, risk_free=risk_free, required_return=required_return, cutoff=cutoff)
     names = _SOLO + (_PAIRED if benchmark is not None else ())
@@ -106,9 +111,16 @@ def stats(returns: Any, *, benchmark: Any = None, ann_factor: float = 365.0, ris
     n_cols = r.shape[1]
     count = np.bincount(d["col"], minlength=n_cols)
     longest = np.zeros(n_cols)
+    recovery = np.full(n_cols, np.nan)
     for c in range(n_cols):
-        dur = d["duration"][d["col"] == c]
+        mine = np.flatnonzero(d["col"] == c)
+        dur = d["duration"][mine]
         longest[c] = dur.max() if len(dur) else 0.0
+        if len(mine):
+            deepest = mine[np.argmin(np.asarray(d["drawdown"])[mine])]
+            if d["recovered"][deepest]:
+                recovery[c] = float(d["recovery_duration"][deepest])
     out["drawdown_count"] = int(count[0]) if one_d else count
     out["max_drawdown_duration"] = float(longest[0]) if one_d else longest
+    out["max_drawdown_recovery"] = float(recovery[0]) if one_d else recovery
     return out
