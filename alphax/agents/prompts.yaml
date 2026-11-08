@@ -1,0 +1,6 @@
+agent.repair_output: |-
+  Your previous reply could not be used: {{ error }}
+  Reply again with only the corrected JSON object.
+
+agent.tool_budget_exhausted: |-
+  The tool budget of this conversation is used up. Do not call tools again; answer now with the final JSON object.
