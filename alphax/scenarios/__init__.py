@@ -1,0 +1,5 @@
+"""Built-in scenarios. Importing this package registers them with the scenario registry."""
+
+from alphax.scenarios.qlib_factor import QlibFactorScenario
+
+__all__ = ["QlibFactorScenario"]
