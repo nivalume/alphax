@@ -8,7 +8,7 @@ alphax 是一个由 LLM 驱动的 alpha 研究与因子挖掘平台。研究循�
 
 ```
 alphax/
-  config/      AlphaXSettings：YAML 运行文件 + ALPHAX_* 环境变量
+  config/      AlphaXSettings：YAML 运行文件 + .env + ALPHAX_* 环境变量
   core/        领域模型与插件接口：Task、Workspace、Experiment、Trace、Feedback、
                五个研究角色（HypothesisProposer / ExperimentDesigner / Developer / Runner / Summarizer）、
                Scenario、ScenarioRegistry、PromotionRule、PromptLibrary
@@ -96,17 +96,103 @@ schedule ──Send(每个未解决任务)──▶ attempt（并行：写代码
 pip install -e ".[dev]"
 ```
 
+## 配置
+
+配置有四个来源，优先级从高到低：
+
+1. shell 环境变量
+2. 当前目录的 `.env`
+3. `-c` 指定的 YAML 运行文件（如 `configs/qlib_factor.yaml`）
+4. 内置默认值
+
+YAML 描述一次运行的完整参数（回测区间、搜索预算等）。`.env` 放密钥和与本机有关的值（模型、API key、qlib 路径）。`.env` 已在 `.gitignore` 中，不会被提交。
+
+从模板创建 `.env`：
+
+```bash
+cp .env.example .env
+```
+
+至少设置模型和 API key：
+
+```dotenv
+ALPHAX_LLM__MODEL=deepseek/deepseek-chat
+ALPHAX_LLM__API_KEY=sk-...
+```
+
+`.env.example` 列出常用的配置项并附说明，可选项默认注释掉。其余字段按下面的命名规则同样可以用环境变量设置。
+
+### 变量命名
+
+变量名 = `ALPHAX_` + 配置段 + `__` + 字段，层级之间用双下划线，不区分大小写。
+
+| YAML 配置项 | 环境变量 |
+|---|---|
+| `llm.model` | `ALPHAX_LLM__MODEL` |
+| `workflow.max_loops` | `ALPHAX_WORKFLOW__MAX_LOOPS` |
+| `costeer.policy` | `ALPHAX_COSTEER__POLICY` |
+| `scenario.options.market` | `ALPHAX_SCENARIO__OPTIONS__MARKET` |
+| `scenario.options.qlib.provider_uri` | `ALPHAX_SCENARIO__OPTIONS__QLIB__PROVIDER_URI` |
+
+数字和布尔值直接写，字典和列表写成 JSON，例如 `ALPHAX_LLM__EXTRA_PARAMS={"top_p": 0.9}`。覆盖场景选项时只改指定的那一项，YAML 里的其余选项保持不变。
+
+### LLM（必填）
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `ALPHAX_LLM__MODEL` | `gpt-4o-mini` | litellm 模型 id，一般是 `<服务商>/<模型名>` |
+| `ALPHAX_LLM__API_KEY` | 无 | API key |
+| `ALPHAX_LLM__API_BASE` | 无 | 网关或自建 OpenAI 兼容服务的地址 |
+| `ALPHAX_LLM__TEMPERATURE` | `0.2` | 采样温度 |
+| `ALPHAX_LLM__MAX_TOKENS` | 不限制 | 单次回复的 token 上限 |
+| `ALPHAX_LLM__TIMEOUT` | `180` | 单次请求超时，秒 |
+| `ALPHAX_LLM__MAX_RETRIES` | `4` | 临时错误（限流、超时、5xx）的重试次数 |
+| `ALPHAX_LLM__RETRY_BACKOFF` | `2.0` | 指数退避的底数，秒 |
+| `ALPHAX_LLM__JSON_MODE` | `true` | 模型支持时要求输出 JSON |
+| `ALPHAX_LLM__CACHE_DIR` | 关闭 | 响应缓存目录 |
+| `ALPHAX_LLM__EXTRA_PARAMS` | `{}` | JSON 对象，原样传给 `litellm.completion`（如 Azure 的 `api_version`） |
+
+几种常见写法：
+
+```dotenv
+# DeepSeek
+ALPHAX_LLM__MODEL=deepseek/deepseek-chat
+ALPHAX_LLM__API_KEY=sk-...
+
+# OpenAI
+ALPHAX_LLM__MODEL=openai/gpt-4o
+ALPHAX_LLM__API_KEY=sk-...
+
+# OpenAI 兼容网关
+ALPHAX_LLM__MODEL=openai/<网关上的模型名>
+ALPHAX_LLM__API_BASE=https://my-gateway.example.com/v1
+ALPHAX_LLM__API_KEY=...
+```
+
+### qlib_factor 场景
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `ALPHAX_SCENARIO__OPTIONS__QLIB__PROVIDER_URI` | `~/.qlib/qlib_data/cn_data` | qlib 数据目录 |
+| `ALPHAX_SCENARIO__OPTIONS__QLIB__PYTHON_BIN` | 运行 alphax 的解释器 | 装有 qlib 的 Python，写绝对路径 |
+| `ALPHAX_SCENARIO__OPTIONS__QLIB__TIMEOUT` | `3600` | 一次 qlib 回测的时间上限，秒 |
+| `ALPHAX_SCENARIO__OPTIONS__DATA_DIR` | `~/.alphax/data/qlib_factor` | 导出的行情数据目录 |
+| `ALPHAX_SCENARIO__OPTIONS__MARKET` | `csi300` | 股票池 |
+| `ALPHAX_SCENARIO__OPTIONS__BENCHMARK` | `SH000300` | 基准 |
+| `ALPHAX_SCENARIO__OPTIONS__USE_CRITIC` | `true` | 是否启用 LLM 代码审查评估阶段 |
+
+研究循环和编码搜索的参数（`ALPHAX_WORKFLOW__*`、`ALPHAX_COSTEER__*`）用法相同，见 `.env.example`。完整字段见 `alphax/config/settings.py` 和 `alphax/scenarios/qlib_factor/settings.py`。
+
+### 注意
+
+- `.env` 从运行命令时的当前目录读取，请在仓库根目录执行 `alphax`。
+- 不要把 API key 写成空值（`ALPHAX_LLM__API_KEY=`）。空字符串会被当作 key 发给服务商，并覆盖 shell 里导出的 `OPENAI_API_KEY` 等变量。不设置这一项时保持注释或删除这一行。
+- 服务商自己的变量（`OPENAI_API_KEY`、`DEEPSEEK_API_KEY`、`AZURE_API_BASE`、`AWS_REGION_NAME` 等）请在 shell 里 `export`。alphax 只读取 `.env` 里 `ALPHAX_` 开头的变量，写在 `.env` 里的其他变量不保证传到 litellm：litellm 自己的 `.env` 查找只在它安装在 `.env` 所在目录之下时才生效（例如项目内的 `.venv`）。只用一个 key 时，用 `ALPHAX_LLM__API_KEY` 最简单。
+- API key 不会写进运行目录，`settings.json` 中显示为 `**********`。
+
 ## 使用
 
-1. 复制并修改运行文件 `configs/qlib_factor.yaml`，设置模型和 API key：
-
-```bash
-export ALPHAX_LLM__MODEL=deepseek/deepseek-chat
-```
-
-```bash
-export ALPHAX_LLM__API_KEY=...
-```
+1. 配置模型和 API key：`cp .env.example .env` 后填写（见上一节）。需要调整回测区间、股票池、搜索预算时，复制并修改运行文件 `configs/qlib_factor.yaml`。
 
 2. 检查环境并导出数据（只需一次）：
 
@@ -176,5 +262,7 @@ my_scenario = "my_package.scenario:MyScenario"
 ```bash
 pytest
 ```
+
+pytest 从仓库根目录运行时也会读取那里的 `.env`。`.env` 里设置了 `ALPHAX_WORKFLOW__MAX_LOOPS`、`ALPHAX_COSTEER__POLICY` 这类运行参数时，`tests/test_workflow.py` 里的配置测试可能失败。跑测试前把这些行注释掉，只留模型和 API key。
 
 `tests/test_qlib_e2e.py` 在合成的 qlib 二进制数据上跑真实的 qlib 流程（导出、编码搜索、前视检查、回测、晋升、去重），只有 LLM 是脚本化的；未安装 qlib 时跳过。
