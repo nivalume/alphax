@@ -1,0 +1,53 @@
+# alphax run file: factor mining on qlib cn_data.
+# Every value can be overridden by an environment variable, e.g. ALPHAX_LLM__MODEL=deepseek/deepseek-chat.
+
+llm:
+  model: gpt-4o-mini            # any litellm model id
+  temperature: 0.2
+  max_retries: 4
+  cache_dir: ~/.alphax/llm_cache  # replaying a run from the cache reproduces it without API calls
+  # api_base: https://my-gateway.example.com/v1
+  # api_key: set ALPHAX_LLM__API_KEY instead of writing it here
+
+costeer:
+  policy: ucb                   # ucb | greedy
+  max_rounds: 5
+  max_attempts_per_task: 6
+  num_drafts: 1
+  max_repair_depth: 3
+  target_score: 0.95
+  lesson_limit: 8
+  lesson_store: ~/.alphax/lessons/qlib_factor.json   # lessons survive across runs
+  max_parallel: 3
+
+workflow:
+  max_loops: 20
+  max_consecutive_failures: 3
+  run_root: alphax_runs
+
+scenario:
+  name: qlib_factor
+  options:
+    qlib:
+      provider_uri: ~/.qlib/qlib_data/cn_data
+      region: cn
+      timeout: 3600
+    data_dir: ~/.alphax/data/qlib_factor
+    market: csi300
+    benchmark: SH000300
+    data_start: "2008-01-01"
+    debug:
+      start: "2018-01-01"
+      end: "2019-12-31"
+      instruments: 100
+    segments:
+      train: ["2008-01-01", "2014-12-31"]
+      valid: ["2015-01-01", "2016-12-31"]
+      test: ["2017-01-01", "2020-08-01"]
+    max_factors_per_experiment: 3
+    correlation_threshold: 0.99
+    promotion:
+      primary: {metric: IC, min_improvement: 0.0}
+      guards:
+        - {metric: 1day.excess_return_with_cost.annualized_return, tolerance: 0.02}
+        - {metric: 1day.excess_return_with_cost.max_drawdown, tolerance: 0.05}
