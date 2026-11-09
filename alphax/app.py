@@ -79,7 +79,7 @@ class AlphaXApplication:
     def prepare(self, *, force: bool = False) -> None:
         self.scenario.prepare(force=force)
 
-    def run(self, *, loops: int | None = None, resume: Path | None = None) -> RunReport:
+    def run(self, *, loops: int | None = None, resume: Path | None = None, until: str | None = None) -> RunReport:
         settings = self._settings
         store = (
             ArtifactStore.open(resume)
@@ -102,7 +102,7 @@ class AlphaXApplication:
             f", resuming after {len(history)}" if history else "",
         )
         try:
-            trace = workflow.run(loops=loops, history=history, baseline=baseline)
+            trace = workflow.run(loops=loops, history=history, baseline=baseline, until=until)
         finally:
             usage = llm.usage_by_agent()
         store.save_summary(trace, usage, scenario.headline_metrics)

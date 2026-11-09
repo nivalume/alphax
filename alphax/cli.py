@@ -12,6 +12,7 @@ from pathlib import Path
 from alphax.app import AlphaXApplication
 from alphax.config.settings import AlphaXSettings
 from alphax.core.registry import scenario_registry
+from alphax.workflow.graph import ResearchWorkflow
 
 
 class AlphaXCommandLine:
@@ -43,7 +44,13 @@ class AlphaXCommandLine:
 
         run = commands.add_parser("run", help="run research loops")
         run.add_argument("-c", "--config", type=Path, help="YAML run file")
-        run.add_argument("--loops", type=int, help="number of loops (default: workflow.max_loops)")
+        extent = run.add_mutually_exclusive_group()
+        extent.add_argument("--loops", type=int, help="number of loops (default: workflow.max_loops)")
+        extent.add_argument(
+            "--until",
+            choices=ResearchWorkflow.STAGES,
+            help="debug: run one loop and stop after this stage; the loop is not recorded, see the log for its output",
+        )
         run.add_argument("--resume", type=Path, help="continue the run in this directory")
         run.set_defaults(handler=self._run)
 
@@ -68,7 +75,7 @@ class AlphaXCommandLine:
     @staticmethod
     def _run(args: argparse.Namespace) -> int:
         settings = AlphaXSettings.load(args.config)
-        report = AlphaXApplication(settings).run(loops=args.loops, resume=args.resume)
+        report = AlphaXApplication(settings).run(loops=args.loops, resume=args.resume, until=args.until)
         print(report.render())
         return 0
 

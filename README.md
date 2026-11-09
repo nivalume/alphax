@@ -216,6 +216,14 @@ alphax run -c configs/qlib_factor.yaml --resume alphax_runs/20261108-120000 --lo
 alphax report alphax_runs/20261108-120000
 ```
 
+调试时可以只跑到某一步就停（`baseline`、`propose`、`design`、`develop`、`run`）：
+
+```bash
+alphax run -c configs/qlib_factor.yaml --until propose
+```
+
+只跑一轮，该步结束后立即退出，之后的步骤不会启动；这一轮不写入 `loops/`，产出看日志。不能与 `--loops` 同用。
+
 代码中使用：
 
 ```python

@@ -4,6 +4,7 @@ import json
 import warnings
 from pathlib import Path
 
+import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 
 from alphax.cli import main
@@ -140,6 +141,64 @@ def test_checkpointer_round_trip(tmp_path: Path) -> None:
         history = workflow.graph.get_state({"configurable": {"thread_id": "run-1"}}).values["history"]
     assert [record.loop for record in history] == [0, 1]
     assert history[1].feedback.failure.stage == "develop"
+
+
+def spied(failing: set[int] = frozenset()) -> tuple[ResearchComponents, list[str]]:
+    """Components that append the name of each role method to the returned list when it is called."""
+    parts = components(set(failing), [0.02])
+    calls: list[str] = []
+    for role, method in (
+        (parts.proposer, "propose"),
+        (parts.designer, "design"),
+        (parts.developer, "develop"),
+        (parts.runner, "run"),
+        (parts.summarizer, "summarize"),
+    ):
+        setattr(role, method, recording(getattr(role, method), method, calls))
+    return parts, calls
+
+
+def recording(original, name: str, calls: list[str]):
+    def wrapper(*args, **kwargs):
+        calls.append(name)
+        return original(*args, **kwargs)
+
+    return wrapper
+
+
+class TestUntil:
+    @pytest.mark.parametrize("stage", ["propose", "design", "develop", "run"])
+    def test_later_stages_never_start_and_nothing_is_recorded(self, tmp_path: Path, stage: str) -> None:
+        parts, calls = spied()
+        trace = ResearchWorkflow(parts, WorkflowSettings(), ArtifactStore(tmp_path)).run(until=stage)
+        order = ["propose", "design", "develop", "run"]
+        assert calls == order[: order.index(stage) + 1]
+        assert len(trace) == 0 and trace.baseline is not None
+        assert list((tmp_path / "loops").glob("*.json")) == []
+
+    def test_baseline_only(self, tmp_path: Path) -> None:
+        parts, calls = spied()
+        trace = ResearchWorkflow(parts, WorkflowSettings(), ArtifactStore(tmp_path)).run(until="baseline")
+        assert calls == [] and trace.baseline is not None
+
+    def test_baseline_only_when_resuming(self, tmp_path: Path) -> None:
+        parts, calls = spied()
+        workflow = ResearchWorkflow(parts, WorkflowSettings(), ArtifactStore(tmp_path))
+        trace = workflow.run(baseline=ExperimentResult(metrics={"IC": 0.5}), until="baseline")
+        assert calls == [] and trace.baseline.get("IC") == 0.5
+
+    def test_a_failure_ends_the_run_without_recording_it(self, tmp_path: Path) -> None:
+        parts, calls = spied(failing={0})
+        trace = ResearchWorkflow(parts, WorkflowSettings(), ArtifactStore(tmp_path)).run(until="run")
+        assert calls == ["propose", "design", "develop"]
+        assert len(trace) == 0 and list((tmp_path / "loops").glob("*.json")) == []
+
+    def test_unknown_stage_and_cli_conflict_are_rejected(self, tmp_path: Path) -> None:
+        workflow = ResearchWorkflow(components(set(), [0.02]), WorkflowSettings(), ArtifactStore(tmp_path))
+        with pytest.raises(ValueError, match="summarize"):
+            workflow.run(until="summarize")
+        with pytest.raises(SystemExit):
+            main(["run", "--loops", "2", "--until", "propose"])
 
 
 class TestSettings:
