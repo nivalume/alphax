@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from support import ScriptedBackend
 
-from alphax.coder import (
+from alphax_agent.coder import (
     CoderAgent,
     CoSTEER,
     ErrorSignature,
@@ -21,15 +21,15 @@ from alphax.coder import (
     SolutionNode,
     SolutionTree,
 )
-from alphax.coder.evaluation import EvaluationContext
-from alphax.config.settings import CoSTEERSettings
-from alphax.core.exceptions import CoderError
-from alphax.core.experiment import Experiment
-from alphax.core.feedback import ImplementationFeedback, StageResult
-from alphax.core.prompts import PromptLibrary
-from alphax.core.scenario import ScenarioContext
-from alphax.core.task import Task
-from alphax.core.workspace import Workspace, WorkspaceFactory
+from alphax_agent.coder.evaluation import EvaluationContext
+from alphax_agent.config.settings import CoSTEERSettings
+from alphax_agent.core.exceptions import CoderError
+from alphax_agent.core.experiment import Experiment
+from alphax_agent.core.feedback import ImplementationFeedback, StageResult
+from alphax_agent.core.prompts import PromptLibrary
+from alphax_agent.core.scenario import ScenarioContext
+from alphax_agent.core.task import Task
+from alphax_agent.core.workspace import Workspace, WorkspaceFactory
 
 CONTEXT = ScenarioContext(background="Toy scenario", data="none", interface="write main.py")
 

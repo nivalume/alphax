@@ -16,30 +16,30 @@ from support import (
     ScriptedBackend,
 )
 
-from alphax.coder.evaluation import EvaluationPipeline
-from alphax.core.exceptions import AgentError
-from alphax.core.experiment import ExperimentResult, Hypothesis, Implementation
-from alphax.core.feedback import ExperimentFeedback, ImplementationFeedback
-from alphax.core.promotion import MetricCriterion, MetricGuard, PromotionRule
-from alphax.core.prompts import PromptLibrary
-from alphax.core.scenario import ScenarioContext
-from alphax.core.trace import Trace, TraceRecord
-from alphax.env.local import LocalEnvironment
-from alphax.scenarios.qlib_factor.agents import FactorCriticAgent, FactorDesignAgent
-from alphax.scenarios.qlib_factor.data import FactorDataCatalog
-from alphax.scenarios.qlib_factor.evaluation import (
+from alphax_agent.coder.evaluation import EvaluationPipeline
+from alphax_agent.core.exceptions import AgentError
+from alphax_agent.core.experiment import ExperimentResult, Hypothesis, Implementation
+from alphax_agent.core.feedback import ExperimentFeedback, ImplementationFeedback
+from alphax_agent.core.promotion import MetricCriterion, MetricGuard, PromotionRule
+from alphax_agent.core.prompts import PromptLibrary
+from alphax_agent.core.scenario import ScenarioContext
+from alphax_agent.core.trace import Trace, TraceRecord
+from alphax_agent.env.local import LocalEnvironment
+from alphax_agent.scenarios.qlib_factor.agents import FactorCriticAgent, FactorDesignAgent
+from alphax_agent.scenarios.qlib_factor.data import FactorDataCatalog
+from alphax_agent.scenarios.qlib_factor.evaluation import (
     FactorCriticStage,
     FactorExecutionStage,
     FactorFormatStage,
     LookAheadStage,
 )
-from alphax.scenarios.qlib_factor.library import FactorLibrary
-from alphax.scenarios.qlib_factor.runner import FactorCombiner, QlibWorkflowConfig
-from alphax.scenarios.qlib_factor.settings import QlibFactorSettings
-from alphax.scenarios.qlib_factor.task import FactorExperiment, FactorTask
-from alphax.scenarios.qlib_factor.workspace import FactorWorkspaceFactory
+from alphax_agent.scenarios.qlib_factor.library import FactorLibrary
+from alphax_agent.scenarios.qlib_factor.runner import FactorCombiner, QlibWorkflowConfig
+from alphax_agent.scenarios.qlib_factor.settings import QlibFactorSettings
+from alphax_agent.scenarios.qlib_factor.task import FactorExperiment, FactorTask
+from alphax_agent.scenarios.qlib_factor.workspace import FactorWorkspaceFactory
 
-PROMPTS = PromptLibrary.from_package("alphax.scenarios.qlib_factor")
+PROMPTS = PromptLibrary.from_package("alphax_agent.scenarios.qlib_factor")
 CONTEXT = ScenarioContext(background="factor research", data="daily bars", interface="factor.py")
 
 

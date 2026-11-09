@@ -14,11 +14,11 @@ import pandas as pd
 import pytest
 from support import GOOD_FACTOR, KEY_ERROR_FACTOR, ScriptedBackend, SyntheticMarket
 
-from alphax.app import AlphaXApplication
-from alphax.config.settings import AlphaXSettings, CoSTEERSettings, LLMSettings, WorkflowSettings
-from alphax.core.promotion import MetricCriterion, PromotionRule
-from alphax.llm.client import LLMClient
-from alphax.scenarios.qlib_factor import QlibFactorScenario, QlibFactorSettings
+from alphax_agent.app import AlphaXApplication
+from alphax_agent.config.settings import AlphaXSettings, CoSTEERSettings, LLMSettings, WorkflowSettings
+from alphax_agent.core.promotion import MetricCriterion, PromotionRule
+from alphax_agent.llm.client import LLMClient
+from alphax_agent.scenarios.qlib_factor import QlibFactorScenario, QlibFactorSettings
 
 pytestmark = [
     pytest.mark.qlib,

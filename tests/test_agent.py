@@ -6,10 +6,10 @@ import pytest
 from pydantic import BaseModel
 from support import ScriptedBackend
 
-from alphax.agents.agent import Agent
-from alphax.agents.tool import Tool
-from alphax.core.exceptions import AgentError, OutputParsingError
-from alphax.core.prompts import PromptLibrary
+from alphax_agent.agents.agent import Agent
+from alphax_agent.agents.tool import Tool
+from alphax_agent.core.exceptions import AgentError, OutputParsingError
+from alphax_agent.core.prompts import PromptLibrary
 
 
 class Verdict(BaseModel):

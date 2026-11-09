@@ -7,18 +7,18 @@ from pathlib import Path
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 
-from alphax.cli import main
-from alphax.config.settings import AlphaXSettings, WorkflowSettings
-from alphax.core.exceptions import CoderError
-from alphax.core.experiment import Experiment, ExperimentResult, Hypothesis
-from alphax.core.feedback import ExperimentFeedback
-from alphax.core.promotion import MetricCriterion, PromotionRule
-from alphax.core.roles import Developer, ExperimentDesigner, HypothesisProposer, Runner, Summarizer
-from alphax.core.scenario import ResearchComponents
-from alphax.core.task import Task
-from alphax.core.trace import Trace
-from alphax.workflow.artifacts import ArtifactStore
-from alphax.workflow.graph import CheckpointSerde, ResearchWorkflow
+from alphax_agent.cli import main
+from alphax_agent.config.settings import AlphaXSettings, WorkflowSettings
+from alphax_agent.core.exceptions import CoderError
+from alphax_agent.core.experiment import Experiment, ExperimentResult, Hypothesis
+from alphax_agent.core.feedback import ExperimentFeedback
+from alphax_agent.core.promotion import MetricCriterion, PromotionRule
+from alphax_agent.core.roles import Developer, ExperimentDesigner, HypothesisProposer, Runner, Summarizer
+from alphax_agent.core.scenario import ResearchComponents
+from alphax_agent.core.task import Task
+from alphax_agent.core.trace import Trace
+from alphax_agent.workflow.artifacts import ArtifactStore
+from alphax_agent.workflow.graph import CheckpointSerde, ResearchWorkflow
 
 
 class CountingProposer(HypothesisProposer):
@@ -209,8 +209,8 @@ class TestSettings:
             "costeer:\n  policy: greedy\n"
             "scenario:\n  name: qlib_factor\n  options:\n    market: csi500\n"
         )
-        monkeypatch.setenv("ALPHAX_LLM__MODEL", "openai/gpt-4o")
-        monkeypatch.setenv("ALPHAX_LLM__API_KEY", "secret")
+        monkeypatch.setenv("ALPHAX_AGENT_LLM__MODEL", "openai/gpt-4o")
+        monkeypatch.setenv("ALPHAX_AGENT_LLM__API_KEY", "secret")
         settings = AlphaXSettings.load(path)
         assert settings.llm.model == "openai/gpt-4o"
         assert settings.llm.temperature == 0.5
@@ -219,16 +219,16 @@ class TestSettings:
         assert settings.snapshot()["llm"]["api_key"] == "**********"
 
     def test_defaults_without_file(self, monkeypatch) -> None:
-        monkeypatch.delenv("ALPHAX_LLM__MODEL", raising=False)
+        monkeypatch.delenv("ALPHAX_AGENT_LLM__MODEL", raising=False)
         assert AlphaXSettings.load().workflow.max_loops == 10
 
 
 def test_example_config_validates() -> None:
-    from alphax.core.registry import scenario_registry
+    from alphax_agent.core.registry import scenario_registry
 
     settings = AlphaXSettings.load(Path(__file__).parents[1] / "configs" / "qlib_factor.yaml")
     scenario_cls = scenario_registry.get(settings.scenario.name)
     options = scenario_cls.settings_model.model_validate(settings.scenario.options)
     assert options.promotion.guards[0].metric == "1day.excess_return_with_cost.annualized_return"
-    assert settings.costeer.lesson_store == Path("~/.alphax/lessons/qlib_factor.json").expanduser()
+    assert settings.costeer.lesson_store == Path("~/.alphax/agent/lessons/qlib_factor.json").expanduser()
     assert settings.llm.cache_dir is not None and "~" not in str(settings.llm.cache_dir)

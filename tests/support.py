@@ -11,8 +11,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from alphax.llm.backend import ChatBackend
-from alphax.llm.types import ChatRequest, ChatResponse, TokenUsage, ToolCall
+from alphax_agent.llm.backend import ChatBackend
+from alphax_agent.llm.types import ChatRequest, ChatResponse, TokenUsage, ToolCall
 
 Responder = Callable[[ChatRequest], "str | ChatResponse"]
 

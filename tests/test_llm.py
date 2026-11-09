@@ -6,13 +6,13 @@ import pytest
 from pydantic import BaseModel
 from support import ScriptedBackend
 
-from alphax.config.settings import LLMSettings
-from alphax.core.exceptions import LLMError, LLMTransientError, OutputParsingError
-from alphax.llm.backend import ChatBackend, LiteLLMBackend
-from alphax.llm.cache import ResponseCache
-from alphax.llm.client import LLMAuditLog, LLMClient
-from alphax.llm.parser import StructuredOutputParser
-from alphax.llm.types import ChatMessage, ChatRequest, ChatResponse, TokenUsage
+from alphax_agent.config.settings import LLMSettings
+from alphax_agent.core.exceptions import LLMError, LLMTransientError, OutputParsingError
+from alphax_agent.llm.backend import ChatBackend, LiteLLMBackend
+from alphax_agent.llm.cache import ResponseCache
+from alphax_agent.llm.client import LLMAuditLog, LLMClient
+from alphax_agent.llm.parser import StructuredOutputParser
+from alphax_agent.llm.types import ChatMessage, ChatRequest, ChatResponse, TokenUsage
 
 
 class Answer(BaseModel):

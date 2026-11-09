@@ -9,8 +9,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from support import ScriptedBackend, SyntheticMarket
 
-from alphax.config.settings import LLMSettings
-from alphax.llm.client import LLMClient
+from alphax_agent.config.settings import LLMSettings
+from alphax_agent.llm.client import LLMClient
 
 
 @pytest.fixture

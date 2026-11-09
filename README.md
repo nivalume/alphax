@@ -1,14 +1,14 @@
-# alphax
+# alphax-agent
 
-alphax 是一个由 LLM 驱动的 alpha 研究与因子挖掘平台。研究循环（提出假设 → 设计实验 → 写代码 → 回测 → 评估）和编码搜索都实现为 LangGraph 图，LLM 调用统一走 litellm。设计参考 RD-Agent，核心抽象可替换：场景（scenario）、编码器（CoSTEER）、执行环境（environment）、工作流（workflow）、Agent。
+alphax-agent 是一个由 LLM 驱动的 alpha 研究与因子挖掘平台。研究循环（提出假设 → 设计实验 → 写代码 → 回测 → 评估）和编码搜索都实现为 LangGraph 图，LLM 调用统一走 litellm。设计参考 RD-Agent，核心抽象可替换：场景（scenario）、编码器（CoSTEER）、执行环境（environment）、工作流（workflow）、Agent。
 
 当前内置场景 `qlib_factor`：在 qlib 数据上挖掘量价因子，因子写成 Python，用 LightGBM + TopkDropout 策略回测。
 
 ## 架构
 
 ```
-alphax/
-  config/      AlphaXSettings：YAML 运行文件 + .env + ALPHAX_* 环境变量
+alphax_agent/
+  config/      AlphaXSettings：YAML 运行文件 + .env + ALPHAX_AGENT_* 环境变量
   core/        领域模型与插件接口：Task、Workspace、Experiment、Trace、Feedback、
                五个研究角色（HypothesisProposer / ExperimentDesigner / Developer / Runner / Summarizer）、
                Scenario、ScenarioRegistry、PromotionRule、PromptLibrary
@@ -20,10 +20,10 @@ alphax/
   scenarios/
     qlib_factor/  数据导出、因子工作区、评估阶段、5 个 Agent、qlib 回测 Runner、prompts
   app.py       组装入口 AlphaXApplication
-  cli.py       命令行 alphax
+  cli.py       命令行 alphax-agent（兼容 alphax 别名）
 ```
 
-### 研究循环（`alphax/workflow`）
+### 研究循环（`alphax_agent/workflow`）
 
 ```
 START → baseline → propose → design → develop → run → summarize → record ─┐
@@ -36,7 +36,7 @@ START → baseline → propose → design → develop → run → summarize → 
 - 状态里的 `history` 是唯一的历史来源，`Trace` 是它的只读视图。
 - 每轮写入 `loops/NNN.json`，可用 `--resume` 从运行目录续跑；也可以传 LangGraph checkpointer（配合 `CheckpointSerde.create()`）。
 
-### Agent（`alphax/agents`）
+### Agent（`alphax_agent/agents`）
 
 凡是“prompt + 工具 + 调用 LLM”的组件都是 `Agent` 子类。子类声明 `name`、`output_model`（pydantic）、两个模板键，再提供一个有类型的方法（`propose`、`design`、`implement`、`review`、`summarize`）。基类负责：
 
@@ -46,9 +46,9 @@ START → baseline → propose → design → develop → run → summarize → 
 
 `qlib_factor` 里的 Agent：`FactorHypothesisAgent`、`FactorDesignAgent`、`FactorCoderAgent`、`FactorCriticAgent`、`FactorFeedbackAgent`，以及通用的 `ReflectionAgent`。
 
-## CoSTEER：不用 RAG 的编码搜索（`alphax/coder`）
+## CoSTEER：不用 RAG 的编码搜索（`alphax_agent/coder`）
 
-RD-Agent 的 CoSTEER 用向量检索找相似任务的成功/失败代码。alphax 换成三种不需要检索的机制：
+RD-Agent 的 CoSTEER 用向量检索找相似任务的成功/失败代码。alphax-agent 换成三种不需要检索的机制：
 
 1. **每个任务一棵解树**（`SolutionTree`）。节点是一份完整实现及其评估结果，边是产生它的算子：
    - `draft`：从零写；
@@ -70,7 +70,7 @@ schedule ──Send(每个未解决任务)──▶ attempt（并行：写代码
 
 评估是分阶段的 `EvaluationPipeline`：前一阶段失败后面的阶段跳过；确定性阶段在前，LLM 阶段在后，大多数拒绝不消耗 token。分数是各阶段加权和，全部通过才算接受。每个实验的搜索树写入 `search_tree.json`。
 
-## 执行环境（`alphax/env`）
+## 执行环境（`alphax_agent/env`）
 
 - `Environment`：在工作目录里执行命令，返回 `EnvResult`。
 - `LocalEnvironment`：本地子进程，每个命令独立进程组，超时连同子进程一起杀掉。
@@ -116,8 +116,8 @@ cp .env.example .env
 至少设置模型和 API key：
 
 ```dotenv
-ALPHAX_LLM__MODEL=deepseek/deepseek-chat
-ALPHAX_LLM__API_KEY=sk-...
+ALPHAX_AGENT_LLM__MODEL=deepseek/deepseek-chat
+ALPHAX_AGENT_LLM__API_KEY=sk-...
 ```
 
 `.env.example` 列出常用的配置项并附说明，可选项默认注释掉。其余字段按下面的命名规则同样可以用环境变量设置。
@@ -128,66 +128,66 @@ ALPHAX_LLM__API_KEY=sk-...
 
 | YAML 配置项 | 环境变量 |
 |---|---|
-| `llm.model` | `ALPHAX_LLM__MODEL` |
-| `workflow.max_loops` | `ALPHAX_WORKFLOW__MAX_LOOPS` |
-| `costeer.policy` | `ALPHAX_COSTEER__POLICY` |
-| `scenario.options.market` | `ALPHAX_SCENARIO__OPTIONS__MARKET` |
-| `scenario.options.qlib.provider_uri` | `ALPHAX_SCENARIO__OPTIONS__QLIB__PROVIDER_URI` |
+| `llm.model` | `ALPHAX_AGENT_LLM__MODEL` |
+| `workflow.max_loops` | `ALPHAX_AGENT_WORKFLOW__MAX_LOOPS` |
+| `costeer.policy` | `ALPHAX_AGENT_COSTEER__POLICY` |
+| `scenario.options.market` | `ALPHAX_AGENT_SCENARIO__OPTIONS__MARKET` |
+| `scenario.options.qlib.provider_uri` | `ALPHAX_AGENT_SCENARIO__OPTIONS__QLIB__PROVIDER_URI` |
 
-数字和布尔值直接写，字典和列表写成 JSON，例如 `ALPHAX_LLM__EXTRA_PARAMS={"top_p": 0.9}`。覆盖场景选项时只改指定的那一项，YAML 里的其余选项保持不变。
+数字和布尔值直接写，字典和列表写成 JSON，例如 `ALPHAX_AGENT_LLM__EXTRA_PARAMS={"top_p": 0.9}`。覆盖场景选项时只改指定的那一项，YAML 里的其余选项保持不变。
 
 ### LLM（必填）
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `ALPHAX_LLM__MODEL` | `gpt-4o-mini` | litellm 模型 id，一般是 `<服务商>/<模型名>` |
-| `ALPHAX_LLM__API_KEY` | 无 | API key |
-| `ALPHAX_LLM__API_BASE` | 无 | 网关或自建 OpenAI 兼容服务的地址 |
-| `ALPHAX_LLM__TEMPERATURE` | `0.2` | 采样温度 |
-| `ALPHAX_LLM__MAX_TOKENS` | 不限制 | 单次回复的 token 上限 |
-| `ALPHAX_LLM__TIMEOUT` | `180` | 单次请求超时，秒 |
-| `ALPHAX_LLM__MAX_RETRIES` | `4` | 临时错误（限流、超时、5xx）的重试次数 |
-| `ALPHAX_LLM__RETRY_BACKOFF` | `2.0` | 指数退避的底数，秒 |
-| `ALPHAX_LLM__JSON_MODE` | `true` | 模型支持时要求输出 JSON |
-| `ALPHAX_LLM__CACHE_DIR` | 关闭 | 响应缓存目录 |
-| `ALPHAX_LLM__EXTRA_PARAMS` | `{}` | JSON 对象，原样传给 `litellm.completion`（如 Azure 的 `api_version`） |
+| `ALPHAX_AGENT_LLM__MODEL` | `gpt-4o-mini` | litellm 模型 id，一般是 `<服务商>/<模型名>` |
+| `ALPHAX_AGENT_LLM__API_KEY` | 无 | API key |
+| `ALPHAX_AGENT_LLM__API_BASE` | 无 | 网关或自建 OpenAI 兼容服务的地址 |
+| `ALPHAX_AGENT_LLM__TEMPERATURE` | `0.2` | 采样温度 |
+| `ALPHAX_AGENT_LLM__MAX_TOKENS` | 不限制 | 单次回复的 token 上限 |
+| `ALPHAX_AGENT_LLM__TIMEOUT` | `180` | 单次请求超时，秒 |
+| `ALPHAX_AGENT_LLM__MAX_RETRIES` | `4` | 临时错误（限流、超时、5xx）的重试次数 |
+| `ALPHAX_AGENT_LLM__RETRY_BACKOFF` | `2.0` | 指数退避的底数，秒 |
+| `ALPHAX_AGENT_LLM__JSON_MODE` | `true` | 模型支持时要求输出 JSON |
+| `ALPHAX_AGENT_LLM__CACHE_DIR` | 关闭 | 响应缓存目录 |
+| `ALPHAX_AGENT_LLM__EXTRA_PARAMS` | `{}` | JSON 对象，原样传给 `litellm.completion`（如 Azure 的 `api_version`） |
 
 几种常见写法：
 
 ```dotenv
 # DeepSeek
-ALPHAX_LLM__MODEL=deepseek/deepseek-chat
-ALPHAX_LLM__API_KEY=sk-...
+ALPHAX_AGENT_LLM__MODEL=deepseek/deepseek-chat
+ALPHAX_AGENT_LLM__API_KEY=sk-...
 
 # OpenAI
-ALPHAX_LLM__MODEL=openai/gpt-4o
-ALPHAX_LLM__API_KEY=sk-...
+ALPHAX_AGENT_LLM__MODEL=openai/gpt-4o
+ALPHAX_AGENT_LLM__API_KEY=sk-...
 
 # OpenAI 兼容网关
-ALPHAX_LLM__MODEL=openai/<网关上的模型名>
-ALPHAX_LLM__API_BASE=https://my-gateway.example.com/v1
-ALPHAX_LLM__API_KEY=...
+ALPHAX_AGENT_LLM__MODEL=openai/<网关上的模型名>
+ALPHAX_AGENT_LLM__API_BASE=https://my-gateway.example.com/v1
+ALPHAX_AGENT_LLM__API_KEY=...
 ```
 
 ### qlib_factor 场景
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `ALPHAX_SCENARIO__OPTIONS__QLIB__PROVIDER_URI` | `~/.qlib/qlib_data/cn_data` | qlib 数据目录 |
-| `ALPHAX_SCENARIO__OPTIONS__QLIB__PYTHON_BIN` | 运行 alphax 的解释器 | 装有 qlib 的 Python，写绝对路径 |
-| `ALPHAX_SCENARIO__OPTIONS__QLIB__TIMEOUT` | `3600` | 一次 qlib 回测的时间上限，秒 |
-| `ALPHAX_SCENARIO__OPTIONS__DATA_DIR` | `~/.alphax/data/qlib_factor` | 导出的行情数据目录 |
-| `ALPHAX_SCENARIO__OPTIONS__MARKET` | `csi300` | 股票池 |
-| `ALPHAX_SCENARIO__OPTIONS__BENCHMARK` | `SH000300` | 基准 |
-| `ALPHAX_SCENARIO__OPTIONS__USE_CRITIC` | `true` | 是否启用 LLM 代码审查评估阶段 |
+| `ALPHAX_AGENT_SCENARIO__OPTIONS__QLIB__PROVIDER_URI` | `~/.qlib/qlib_data/cn_data` | qlib 数据目录 |
+| `ALPHAX_AGENT_SCENARIO__OPTIONS__QLIB__PYTHON_BIN` | 运行 alphax-agent 的解释器 | 装有 qlib 的 Python，写绝对路径 |
+| `ALPHAX_AGENT_SCENARIO__OPTIONS__QLIB__TIMEOUT` | `3600` | 一次 qlib 回测的时间上限，秒 |
+| `ALPHAX_AGENT_SCENARIO__OPTIONS__DATA_DIR` | `~/.alphax/agent/data/qlib_factor` | 导出的行情数据目录 |
+| `ALPHAX_AGENT_SCENARIO__OPTIONS__MARKET` | `csi300` | 股票池 |
+| `ALPHAX_AGENT_SCENARIO__OPTIONS__BENCHMARK` | `SH000300` | 基准 |
+| `ALPHAX_AGENT_SCENARIO__OPTIONS__USE_CRITIC` | `true` | 是否启用 LLM 代码审查评估阶段 |
 
-研究循环和编码搜索的参数（`ALPHAX_WORKFLOW__*`、`ALPHAX_COSTEER__*`）用法相同，见 `.env.example`。完整字段见 `alphax/config/settings.py` 和 `alphax/scenarios/qlib_factor/settings.py`。
+研究循环和编码搜索的参数（`ALPHAX_AGENT_WORKFLOW__*`、`ALPHAX_AGENT_COSTEER__*`）用法相同，见 `.env.example`。完整字段见 `alphax_agent/config/settings.py` 和 `alphax_agent/scenarios/qlib_factor/settings.py`。
 
 ### 注意
 
-- `.env` 从运行命令时的当前目录读取，请在仓库根目录执行 `alphax`。
-- 不要把 API key 写成空值（`ALPHAX_LLM__API_KEY=`）。空字符串会被当作 key 发给服务商，并覆盖 shell 里导出的 `OPENAI_API_KEY` 等变量。不设置这一项时保持注释或删除这一行。
-- 服务商自己的变量（`OPENAI_API_KEY`、`DEEPSEEK_API_KEY`、`AZURE_API_BASE`、`AWS_REGION_NAME` 等）请在 shell 里 `export`。alphax 只读取 `.env` 里 `ALPHAX_` 开头的变量，写在 `.env` 里的其他变量不保证传到 litellm：litellm 自己的 `.env` 查找只在它安装在 `.env` 所在目录之下时才生效（例如项目内的 `.venv`）。只用一个 key 时，用 `ALPHAX_LLM__API_KEY` 最简单。
+- `.env` 从运行命令时的当前目录读取，请在仓库根目录执行 `alphax-agent`。
+- 不要把 API key 写成空值（`ALPHAX_AGENT_LLM__API_KEY=`）。空字符串会被当作 key 发给服务商，并覆盖 shell 里导出的 `OPENAI_API_KEY` 等变量。不设置这一项时保持注释或删除这一行。
+- 服务商自己的变量（`OPENAI_API_KEY`、`DEEPSEEK_API_KEY`、`AZURE_API_BASE`、`AWS_REGION_NAME` 等）请在 shell 里 `export`。alphax-agent 只读取 `.env` 里 `ALPHAX_AGENT_` 开头的变量，写在 `.env` 里的其他变量不保证传到 litellm：litellm 自己的 `.env` 查找只在它安装在 `.env` 所在目录之下时才生效（例如项目内的 `.venv`）。只用一个 key 时，用 `ALPHAX_AGENT_LLM__API_KEY` 最简单。
 - API key 不会写进运行目录，`settings.json` 中显示为 `**********`。
 
 ## 使用
@@ -197,29 +197,29 @@ ALPHAX_LLM__API_KEY=...
 2. 检查环境并导出数据（只需一次）：
 
 ```bash
-alphax prepare -c configs/qlib_factor.yaml
+alphax-agent prepare -c configs/qlib_factor.yaml
 ```
 
 3. 运行研究循环：
 
 ```bash
-alphax run -c configs/qlib_factor.yaml --loops 10
+alphax-agent run -c configs/qlib_factor.yaml --loops 10
 ```
 
 4. 续跑、查看结果：
 
 ```bash
-alphax run -c configs/qlib_factor.yaml --resume alphax_runs/20261108-120000 --loops 5
+alphax-agent run -c configs/qlib_factor.yaml --resume alphax_runs/20261108-120000 --loops 5
 ```
 
 ```bash
-alphax report alphax_runs/20261108-120000
+alphax-agent report alphax_runs/20261108-120000
 ```
 
 调试时可以只跑到某一步就停（`baseline`、`propose`、`design`、`develop`、`run`）：
 
 ```bash
-alphax run -c configs/qlib_factor.yaml --until propose
+alphax-agent run -c configs/qlib_factor.yaml --until propose
 ```
 
 只跑一轮，该步结束后立即退出，之后的步骤不会启动；这一轮不写入 `loops/`，产出看日志。不能与 `--loops` 同用。
@@ -227,8 +227,8 @@ alphax run -c configs/qlib_factor.yaml --until propose
 代码中使用：
 
 ```python
-from alphax.app import AlphaXApplication
-from alphax.config import AlphaXSettings
+from alphax_agent.app import AlphaXApplication
+from alphax_agent.config import AlphaXSettings
 
 report = AlphaXApplication(AlphaXSettings.load("configs/qlib_factor.yaml")).run(loops=5)
 print(report.render())
@@ -252,10 +252,10 @@ alphax_runs/<run>/
 
 ## 扩展
 
-**新场景**：继承 `Scenario`，提供 `settings_model`、`context`（给 Agent 的场景描述）、`prepare()`、`assemble()`（返回五个角色）。在自己的包里声明 entry point 即可被发现，不需要改 alphax：
+**新场景**：继承 `Scenario`，提供 `settings_model`、`context`（给 Agent 的场景描述）、`prepare()`、`assemble()`（返回五个角色）。在自己的包里声明 entry point 即可被发现，不需要改 alphax-agent：
 
 ```toml
-[project.entry-points."alphax.scenarios"]
+[project.entry-points."alphax_agent.scenarios"]
 my_scenario = "my_package.scenario:MyScenario"
 ```
 
@@ -271,6 +271,6 @@ my_scenario = "my_package.scenario:MyScenario"
 pytest
 ```
 
-pytest 从仓库根目录运行时也会读取那里的 `.env`。`.env` 里设置了 `ALPHAX_WORKFLOW__MAX_LOOPS`、`ALPHAX_COSTEER__POLICY` 这类运行参数时，`tests/test_workflow.py` 里的配置测试可能失败。跑测试前把这些行注释掉，只留模型和 API key。
+pytest 从仓库根目录运行时也会读取那里的 `.env`。`.env` 里设置了 `ALPHAX_AGENT_WORKFLOW__MAX_LOOPS`、`ALPHAX_AGENT_COSTEER__POLICY` 这类运行参数时，`tests/test_workflow.py` 里的配置测试可能失败。跑测试前把这些行注释掉，只留模型和 API key。
 
 `tests/test_qlib_e2e.py` 在合成的 qlib 二进制数据上跑真实的 qlib 流程（导出、编码搜索、前视检查、回测、晋升、去重），只有 LLM 是脚本化的；未安装 qlib 时跳过。

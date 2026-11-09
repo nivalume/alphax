@@ -1,13 +1,13 @@
-# alphax run file: factor mining on qlib cn_data.
-# Every value can be overridden by an environment variable, e.g. ALPHAX_LLM__MODEL=deepseek/deepseek-chat.
+# alphax-agent run file: factor mining on qlib cn_data.
+# Every value can be overridden by an environment variable, e.g. ALPHAX_AGENT_LLM__MODEL=deepseek/deepseek-chat.
 
 llm:
   model: gpt-4o-mini            # any litellm model id
   temperature: 0.2
   max_retries: 4
-  cache_dir: ~/.alphax/llm_cache  # replaying a run from the cache reproduces it without API calls
+  cache_dir: ~/.alphax/agent/llm_cache  # replaying a run from the cache reproduces it without API calls
   # api_base: https://my-gateway.example.com/v1
-  # api_key: set ALPHAX_LLM__API_KEY instead of writing it here
+  # api_key: set ALPHAX_AGENT_LLM__API_KEY instead of writing it here
 
 costeer:
   policy: ucb                   # ucb | greedy
@@ -17,7 +17,7 @@ costeer:
   max_repair_depth: 3
   target_score: 0.95
   lesson_limit: 8
-  lesson_store: ~/.alphax/lessons/qlib_factor.json   # lessons survive across runs
+  lesson_store: ~/.alphax/agent/lessons/qlib_factor.json   # lessons survive across runs
   max_parallel: 3
 
 workflow:
@@ -32,7 +32,7 @@ scenario:
       provider_uri: ~/.qlib/qlib_data/cn_data
       region: cn
       timeout: 3600
-    data_dir: ~/.alphax/data/qlib_factor
+    data_dir: ~/.alphax/agent/data/qlib_factor
     market: csi300
     benchmark: SH000300
     data_start: "2008-01-01"
