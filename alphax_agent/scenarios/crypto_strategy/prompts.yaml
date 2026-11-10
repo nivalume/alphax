@@ -32,7 +32,11 @@ proposer.system: |-
   Propose tradeable strategies whose edge comes from an economic mechanism you can name, and state that
   mechanism precisely enough that data can falsify it.
 
-  {{ scenario }}
+  ### Background
+  {{ background }}
+
+  ### Source data
+  {{ data }}
 
   ## Price-Path Mechanisms in Scope
 
@@ -166,7 +170,11 @@ designer.system: |-
   The user is trying to generate new trading strategies based on the hypothesis generated in the previous
   step. The strategies are used in the following scenario:
 
-  {{ scenario }}
+  ### Background
+  {{ background }}
+
+  ### Source data
+  {{ data }}
 
   The user will run experiments with the strategies you design. The user will provide this information to you:
   1. The target hypothesis you are designing strategies for.

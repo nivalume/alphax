@@ -16,7 +16,7 @@ from alphax_agent.core.feedback import ExperimentFeedback, ImplementationFeedbac
 from alphax_agent.core.promotion import MetricCriterion, MetricGuard, PromotionRule, PromotionVerdict
 from alphax_agent.core.prompts import PromptLibrary
 from alphax_agent.core.roles import Developer, ExperimentDesigner, HypothesisProposer, Runner, Summarizer
-from alphax_agent.core.scenario import ResearchComponents, Scenario, ScenarioContext
+from alphax_agent.core.scenario import ResearchComponents, Scenario
 from alphax_agent.core.task import Task
 from alphax_agent.core.trace import Trace, TraceRecord
 from alphax_agent.core.workspace import Workspace
@@ -50,7 +50,6 @@ __all__ = [
     "Runner",
     "RunnerError",
     "Scenario",
-    "ScenarioContext",
     "StageResult",
     "StepFailure",
     "Summarizer",

@@ -1,4 +1,4 @@
-"""The agent abstraction: prompts + tools + one LLM, producing one validated output."""
+"""The agent abstraction: a prompt + tools + one LLM, producing one validated output."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel
 
+from alphax_agent.agents.prompt import AgentPrompt
 from alphax_agent.agents.tool import Tool, Toolbox
 from alphax_agent.core.exceptions import AgentError, OutputParsingError
 from alphax_agent.core.prompts import PromptLibrary
@@ -30,53 +31,54 @@ class Agent(Generic[OutputT]):
 
     * ``name`` - used for auditing and usage accounting,
     * ``output_model`` - the pydantic model the reply must validate against,
-    * ``system_template`` / ``user_template`` - keys into its :class:`PromptLibrary`,
 
-    and exposes a typed public method (``propose``, ``implement``, ...) that builds the
-    template context and calls :meth:`_ask`. The conversation loop runs the requested
-    tools, feeds their output back, and asks the model to repair a reply that does not
-    parse, within fixed budgets.
+    takes its own :class:`AgentPrompt`, which decides everything the model is told, and
+    exposes a typed public method (``propose``, ``implement``, ...) that passes the prompt
+    its inputs through :meth:`_ask`. The conversation loop runs the requested tools, feeds
+    their output back, and asks the model to repair a reply that does not parse, within
+    fixed budgets.
     """
 
     name: ClassVar[str]
     output_model: ClassVar[type[BaseModel]]
-    system_template: ClassVar[str]
-    user_template: ClassVar[str]
 
     def __init__(
         self,
         llm: LLMClient,
-        prompts: PromptLibrary,
+        prompt: AgentPrompt,
         tools: Sequence[Tool] = (),
         *,
         max_tool_rounds: int = 6,
         max_parse_retries: int = 2,
     ) -> None:
         self._llm = llm
-        self._prompts = self._base_prompts().merged(prompts)
+        self._prompt = prompt
         self._toolbox = Toolbox(tools)
         self._parser: StructuredOutputParser[OutputT] = StructuredOutputParser(self.output_model)  # type: ignore[arg-type]
         self._max_tool_rounds = max_tool_rounds
         self._max_parse_retries = max_parse_retries
 
     @property
+    def prompt(self) -> AgentPrompt:
+        return self._prompt
+
+    @property
     def tools(self) -> list[str]:
         return self._toolbox.names()
 
-    def _ask(self, validator: Callable[[OutputT], OutputT] | None = None, /, **context: Any) -> OutputT:
-        """Render the templates with ``context`` and converse until a valid output is produced.
+    def _ask(self, validator: Callable[[OutputT], OutputT] | None = None, /, **inputs: Any) -> OutputT:
+        """Render the prompt with ``inputs`` and converse until a valid output is produced.
 
         ``validator`` replaces :meth:`_validate` for this call, for checks that depend on
         the call's arguments.
         """
-        return self._converse(self._messages(context), validator or self._validate)
+        return self._converse(self._messages(inputs), validator or self._validate)
 
-    def _messages(self, context: dict[str, Any]) -> list[ChatMessage]:
-        system = self._prompts.render(self.system_template, **context)
-        user = self._prompts.render(self.user_template, **context)
+    def _messages(self, inputs: dict[str, Any]) -> list[ChatMessage]:
+        system, user = self._prompt.format_messages(**inputs)
         return [
-            ChatMessage.system(f"{system}\n\n{self._parser.format_instructions()}"),
-            ChatMessage.user(user),
+            ChatMessage.system(f"{system.text}\n\n{self._parser.format_instructions()}"),
+            ChatMessage.user(user.text),
         ]
 
     def _validate(self, output: OutputT) -> OutputT:
@@ -107,7 +109,7 @@ class Agent(Generic[OutputT]):
                 refused_tool_rounds += 1
                 if refused_tool_rounds > 1:
                     raise AgentError(f"{self.name} kept calling tools after its budget of {self._max_tool_rounds}")
-                refusal = self._prompts.render("agent.tool_budget_exhausted")
+                refusal = self._base_prompts().render("agent.tool_budget_exhausted")
                 messages.extend(ChatMessage.tool(call, refusal) for call in response.tool_calls)
                 continue
             try:
@@ -118,9 +120,10 @@ class Agent(Generic[OutputT]):
                 if parse_failures > self._max_parse_retries:
                     raise AgentError(f"{self.name} produced no valid output: {exc}") from exc
                 messages.append(ChatMessage.assistant(response.content))
-                messages.append(ChatMessage.user(self._prompts.render("agent.repair_output", error=str(exc))))
+                messages.append(ChatMessage.user(self._base_prompts().render("agent.repair_output", error=str(exc))))
 
     @staticmethod
     @cache
     def _base_prompts() -> PromptLibrary:
+        """The conversation loop's own messages (repair, tool budget), the same for every agent."""
         return PromptLibrary.from_package("alphax_agent.agents")

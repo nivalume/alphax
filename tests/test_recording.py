@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from support import ScriptedBackend
 
 from alphax_agent.agents.agent import Agent
+from alphax_agent.agents.prompt import AgentPrompt
 from alphax_agent.app import AlphaXApplication
 from alphax_agent.config.settings import AlphaXSettings, LLMSettings, WorkflowSettings
 from alphax_agent.core.exceptions import CoderError
@@ -137,11 +138,14 @@ class Answer(BaseModel):
     value: int
 
 
+class CountingPrompt(AgentPrompt):
+    system_template = "t.system"
+    user_template = "t.user"
+
+
 class CountingAgent(Agent[Answer]):
     name = "counter"
     output_model = Answer
-    system_template = "t.system"
-    user_template = "t.user"
 
     def ask(self) -> Answer:
         return self._ask()
@@ -153,7 +157,7 @@ class TestConversations:
     ) -> None:
         llm.attach_audit(LLMAuditLog(tmp_path / "calls.jsonl"))
         backend.on("counter", ["not json", '{"value": 1}', '{"value": 2}'])
-        agent = CountingAgent(llm, PromptLibrary({"t.system": "s", "t.user": "u"}))
+        agent = CountingAgent(llm, CountingPrompt(library=PromptLibrary({"t.system": "s", "t.user": "u"})))
         assert agent.ask().value == 1
         assert agent.ask().value == 2
         contexts = [line["context"] for line in read_lines(tmp_path / "calls.jsonl")]

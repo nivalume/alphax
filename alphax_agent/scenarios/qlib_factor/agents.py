@@ -15,14 +15,18 @@ from alphax_agent.core.exceptions import OutputParsingError, RunnerError
 from alphax_agent.core.experiment import Experiment, ExperimentResult, Hypothesis
 from alphax_agent.core.feedback import ExperimentFeedback
 from alphax_agent.core.promotion import PromotionRule
-from alphax_agent.core.prompts import PromptLibrary
 from alphax_agent.core.roles import ExperimentDesigner, HypothesisProposer, Summarizer
-from alphax_agent.core.scenario import ScenarioContext
 from alphax_agent.core.task import Task
 from alphax_agent.core.trace import Trace
 from alphax_agent.core.workspace import Workspace
 from alphax_agent.llm.client import LLMClient
 from alphax_agent.scenarios.qlib_factor.library import FactorLibrary
+from alphax_agent.scenarios.qlib_factor.prompts import (
+    FactorAnalystPrompt,
+    FactorCriticPrompt,
+    FactorDesignerPrompt,
+    FactorProposerPrompt,
+)
 from alphax_agent.scenarios.qlib_factor.task import FactorExperiment, FactorSpec, FactorTask
 
 #: Metrics shown to the agents, in display order.
@@ -71,27 +75,22 @@ class MetricComparison:
 class FactorHypothesisAgent(Agent[Hypothesis], HypothesisProposer):
     name = "factor_proposer"
     output_model = Hypothesis
-    system_template = "proposer.system"
-    user_template = "proposer.user"
 
     def __init__(
         self,
         llm: LLMClient,
-        prompts: PromptLibrary,
-        context: ScenarioContext,
+        prompt: FactorProposerPrompt,
         tools: Sequence[Tool] = (),
         *,
         history_window: int = 8,
         **kwargs: Any,
     ) -> None:
-        super().__init__(llm, prompts, tools, **kwargs)
-        self._context = context
+        super().__init__(llm, prompt, tools, **kwargs)
         self._history_window = history_window
 
     def propose(self, trace: Trace) -> Hypothesis:
         last = trace.records[-1].feedback if len(trace) else None
         return self._ask(
-            scenario=self._context.render(["background", "data", "experiment_setting"]),
             history=trace.render_history(self._history_window),
             library=FactorLibrary(trace).render(),
             best=MetricComparison(
@@ -131,21 +130,17 @@ class FactorDesignPolicy:
 class FactorDesignAgent(Agent[FactorDesign], ExperimentDesigner):
     name = "factor_designer"
     output_model = FactorDesign
-    system_template = "designer.system"
-    user_template = "designer.user"
 
     def __init__(
         self,
         llm: LLMClient,
-        prompts: PromptLibrary,
-        context: ScenarioContext,
+        prompt: FactorDesignerPrompt,
         *,
         max_factors: int,
         reserved_names: Iterable[str] = (),
         **kwargs: Any,
     ) -> None:
-        super().__init__(llm, prompts, **kwargs)
-        self._context = context
+        super().__init__(llm, prompt, **kwargs)
         self._max_factors = max_factors
         self._reserved = set(reserved_names)
 
@@ -154,7 +149,6 @@ class FactorDesignAgent(Agent[FactorDesign], ExperimentDesigner):
         policy = FactorDesignPolicy(self._max_factors, self._reserved | library.names())
         design = self._ask(
             policy,
-            scenario=self._context.render(["background", "data", "experiment_setting"]),
             hypothesis=hypothesis.render(),
             library=library.render(),
             reserved=sorted(self._reserved),
@@ -177,16 +171,12 @@ class CodeReview(BaseModel):
 class FactorCriticAgent(Agent[CodeReview]):
     name = "factor_critic"
     output_model = CodeReview
-    system_template = "critic.system"
-    user_template = "critic.user"
 
-    def __init__(self, llm: LLMClient, prompts: PromptLibrary, context: ScenarioContext, **kwargs: Any) -> None:
-        super().__init__(llm, prompts, **kwargs)
-        self._context = context
+    def __init__(self, llm: LLMClient, prompt: FactorCriticPrompt, **kwargs: Any) -> None:
+        super().__init__(llm, prompt, **kwargs)
 
     def review(self, task: Task, workspace: Workspace, value_summary: str) -> CodeReview:
         return self._ask(
-            scenario=self._context.render(["background", "data", "interface"]),
             task=task.render(),
             code=workspace.render_code(),
             value_summary=value_summary,
@@ -206,14 +196,9 @@ class FactorFeedbackAgent(Agent[FeedbackAnalysis], Summarizer):
 
     name = "factor_analyst"
     output_model = FeedbackAnalysis
-    system_template = "analyst.system"
-    user_template = "analyst.user"
 
-    def __init__(
-        self, llm: LLMClient, prompts: PromptLibrary, context: ScenarioContext, rule: PromotionRule, **kwargs: Any
-    ) -> None:
-        super().__init__(llm, prompts, **kwargs)
-        self._context = context
+    def __init__(self, llm: LLMClient, prompt: FactorAnalystPrompt, rule: PromotionRule, **kwargs: Any) -> None:
+        super().__init__(llm, prompt, **kwargs)
         self._rule = rule
 
     def summarize(self, experiment: Experiment, trace: Trace) -> ExperimentFeedback:
@@ -225,7 +210,6 @@ class FactorFeedbackAgent(Agent[FeedbackAnalysis], Summarizer):
             task.name for task, impl in experiment.accepted() if impl.artifacts.get(FactorLibrary.INCLUDED) == "true"
         ]
         analysis = self._ask(
-            scenario=self._context.render(["background", "experiment_setting"]),
             hypothesis=experiment.hypothesis.render() if experiment.hypothesis else "(none)",
             tasks=experiment.render_tasks(),
             included=included,

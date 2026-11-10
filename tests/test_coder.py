@@ -8,6 +8,7 @@ from support import ScriptedBackend
 
 from alphax_agent.coder import (
     CoderAgent,
+    CoderPrompt,
     CoSTEER,
     ErrorSignature,
     EvaluationPipeline,
@@ -17,6 +18,7 @@ from alphax_agent.coder import (
     LessonDraft,
     Operator,
     ReflectionAgent,
+    ReflectorPrompt,
     SearchPolicy,
     SolutionNode,
     SolutionTree,
@@ -27,13 +29,13 @@ from alphax_agent.core.exceptions import CoderError
 from alphax_agent.core.experiment import Experiment
 from alphax_agent.core.feedback import ImplementationFeedback, StageResult
 from alphax_agent.core.prompts import PromptLibrary
-from alphax_agent.core.scenario import ScenarioContext
 from alphax_agent.core.task import Task
 from alphax_agent.core.workspace import Workspace, WorkspaceFactory
 from alphax_agent.llm.client import LLMAuditLog
 from alphax_agent.llm.context import call_context, current_context
 
-CONTEXT = ScenarioContext(background="Toy scenario", data="none", interface="write main.py")
+CODER_PROMPT = CoderPrompt(library=PromptLibrary())
+REFLECTOR_PROMPT = ReflectorPrompt(library=PromptLibrary())
 
 
 def feedback(accepted: bool, score: float, message: str = "") -> ImplementationFeedback:
@@ -207,12 +209,12 @@ class TestCoSTEER:
         )
         settings = CoSTEERSettings(policy="greedy", max_rounds=3, target_score=0.9, lesson_store=tmp_path / "kb.json")
         developer = CoSTEER(
-            ToyCoder(llm, PromptLibrary(), CONTEXT),
+            ToyCoder(llm, CODER_PROMPT),
             EvaluationPipeline([ContainsStage()]),
             PlainFactory(),
             settings,
             tmp_path / "coding",
-            reflector=ReflectionAgent(llm, PromptLibrary(), CONTEXT),
+            reflector=ReflectionAgent(llm, REFLECTOR_PROMPT),
         )
         experiment = Experiment(tasks=[Task(name="alpha", description="a"), Task(name="beta", description="b")])
         developer.develop(experiment, None)
@@ -240,12 +242,12 @@ class TestCoSTEER:
         backend.on("reflector", lambda request: json.dumps({"lessons": [], "reinforced": []}))
         llm.attach_audit(LLMAuditLog(tmp_path / "calls.jsonl"))
         developer = CoSTEER(
-            ToyCoder(llm, PromptLibrary(), CONTEXT),
+            ToyCoder(llm, CODER_PROMPT),
             EvaluationPipeline([ContainsStage()]),
             PlainFactory(),
             CoSTEERSettings(policy="greedy", max_rounds=3, target_score=0.9),
             tmp_path / "coding",
-            reflector=ReflectionAgent(llm, PromptLibrary(), CONTEXT),
+            reflector=ReflectionAgent(llm, REFLECTOR_PROMPT),
         )
         experiment = Experiment(tasks=[Task(name="alpha", description="a"), Task(name="beta", description="b")])
         with call_context(loop=4, stage="develop"):
@@ -271,7 +273,7 @@ class TestCoSTEER:
     def test_raises_when_nothing_is_accepted(self, backend: ScriptedBackend, llm, tmp_path: Path) -> None:
         backend.on("coder", lambda request: json.dumps({"rationale": "", "files": {"main.py": "broken"}}))
         developer = CoSTEER(
-            ToyCoder(llm, PromptLibrary(), CONTEXT),
+            ToyCoder(llm, CODER_PROMPT),
             EvaluationPipeline([ContainsStage()]),
             PlainFactory(),
             CoSTEERSettings(max_rounds=2),
@@ -281,3 +283,43 @@ class TestCoSTEER:
         with pytest.raises(CoderError, match="KeyError"):
             developer.develop(experiment, None)
         assert experiment.implementations and not experiment.accepted()
+
+
+class ToyScenarioCoderPrompt(CoderPrompt):
+    """A scenario's coder prompt: the generic inputs, plus a section of its own."""
+
+    interface: str
+
+    def sections(self) -> dict[str, str]:
+        return {"interface": self.interface}
+
+
+class TestCoderPrompt:
+    INPUTS = dict(
+        task="Task: alpha",
+        operator="draft",
+        required_files=["main.py"],
+        parent_code="",
+        parent_feedback="",
+        lineage=[],
+        lessons="(none)",
+        peers=[],
+        tools=[],
+    )
+
+    def test_the_generic_prompt_describes_no_domain(self) -> None:
+        system, user = CODER_PROMPT.format_messages(**self.INPUTS)
+        assert "senior quantitative developer" in system.text and "main.py" in system.text
+        assert "described above" not in system.text
+        assert "# Mode: draft" in user.text
+
+    def test_a_scenario_overrides_the_system_template_and_adds_its_sections(self) -> None:
+        library = PromptLibrary(
+            {"coder.system": "Write {{ required_files | join(', ') }}.\n### Interface\n{{ interface }}"}
+        )
+        system, user = ToyScenarioCoderPrompt(library=library, interface="print the answer").format_messages(
+            **self.INPUTS
+        )
+        assert system.text == "Write main.py.\n### Interface\nprint the answer"
+        # The user template is still the package's own.
+        assert "# Mode: draft" in user.text and "Task: alpha" in user.text

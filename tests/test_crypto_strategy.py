@@ -12,7 +12,6 @@ from alphax_agent.core.experiment import Experiment, Hypothesis
 from alphax_agent.core.feedback import ExperimentFeedback
 from alphax_agent.core.prompts import PromptLibrary
 from alphax_agent.core.registry import scenario_registry
-from alphax_agent.core.scenario import ScenarioContext
 from alphax_agent.core.task import Task
 from alphax_agent.core.trace import Trace, TraceRecord
 from alphax_agent.llm.client import LLMClient
@@ -25,11 +24,13 @@ from alphax_agent.scenarios.crypto_strategy.agents import (
     StrategyHypothesisAgent,
 )
 from alphax_agent.scenarios.crypto_strategy.data import NO_DATA_SCHEMA, render_data_schemas
+from alphax_agent.scenarios.crypto_strategy.prompts import StrategyDesignerPrompt, StrategyProposerPrompt
 from alphax_agent.workflow.artifacts import ArtifactStore
 from alphax_agent.workflow.graph import ResearchWorkflow
 
 PROMPTS = PromptLibrary.from_package("alphax_agent.scenarios.crypto_strategy")
-CONTEXT = ScenarioContext(background="a crypto desk", data="bars and funding")
+PROPOSER_PROMPT = StrategyProposerPrompt(library=PROMPTS, data_schemas="bars and funding")
+DESIGNER_PROMPT = StrategyDesignerPrompt(library=PROMPTS, data_schemas="bars and funding")
 
 HYPOTHESIS = {
     "statement": "Forced liquidations push price past flow equilibrium and it partly gives the move back.",
@@ -135,7 +136,7 @@ class TestDataSchemas:
 class TestHypothesisAgent:
     @pytest.fixture
     def agent(self, llm: LLMClient) -> StrategyHypothesisAgent:
-        return StrategyHypothesisAgent(llm, PROMPTS, CONTEXT, history_window=4)
+        return StrategyHypothesisAgent(llm, PROPOSER_PROMPT, history_window=4)
 
     def test_proposes_a_hypothesis_with_the_scenario_in_the_prompt(
         self, agent: StrategyHypothesisAgent, backend: ScriptedBackend
@@ -144,7 +145,8 @@ class TestHypothesisAgent:
         hypothesis = agent.propose(Trace())
         assert hypothesis.statement == HYPOTHESIS["statement"]
         system, user = (message.content for message in backend.requests_of("strategy_proposer")[0].messages)
-        assert "a crypto desk" in system and "bars and funding" in system
+        assert "linear perpetual futures" in system and "The clock:" in system and "bars and funding" in system
+        assert "### Background" in system and "### Source data" in system and "Code interface" not in system
         assert "Mean reversion" in system and "Trend following" in system
         assert "Do not name any instrument" in system and "Falsifiable prediction" in system
         assert "JSON schema" in system
@@ -177,7 +179,7 @@ class TestHypothesisAgent:
 class TestDesignAgent:
     @pytest.fixture
     def agent(self, llm: LLMClient) -> StrategyDesignAgent:
-        return StrategyDesignAgent(llm, PROMPTS, CONTEXT, max_strategies=2, history_window=4)
+        return StrategyDesignAgent(llm, DESIGNER_PROMPT, max_strategies=2, history_window=4)
 
     def test_designs_an_experiment_of_plain_tasks(self, agent: StrategyDesignAgent, backend: ScriptedBackend) -> None:
         backend.on("strategy_designer", [json.dumps({"strategies": [strategy("A"), strategy("B", "Longer horizon")]})])
@@ -220,23 +222,43 @@ class TestScenario:
         assert settings.data_path == (tmp_path / "data").resolve()
         assert not str(CryptoStrategySettings().data_path).startswith("~")
 
-    def test_context_describes_the_market_and_the_data_only(self, scenario: CryptoStrategyScenario) -> None:
-        context = scenario.context
-        assert "linear perpetual futures" in context.background and "The clock:" in context.background
-        assert "market.crypto.bar" in context.data
-        assert not (context.interface or context.output_format or context.experiment_setting or context.runtime)
-        rendered = context.render()
-        assert "### Background" in rendered and "### Source data" in rendered and "Code interface" not in rendered
+    @staticmethod
+    def proposer_system(
+        scenario: CryptoStrategyScenario, llm: LLMClient, backend: ScriptedBackend, tmp_path: Path
+    ) -> str:
+        """The system prompt of the proposer of a freshly assembled run."""
+        backend.on("strategy_proposer", lambda request: json.dumps(HYPOTHESIS))
+        parts = scenario.assemble(llm, AlphaXSettings(), tmp_path)
+        parts.proposer.propose(Trace())
+        return backend.requests_of("strategy_proposer")[-1].messages[0].content
 
-    def test_context_without_data_says_so(self, tmp_path: Path) -> None:
+    def test_both_agents_are_told_the_market_and_the_data(
+        self, scenario: CryptoStrategyScenario, llm: LLMClient, backend: ScriptedBackend, tmp_path: Path
+    ) -> None:
+        parts = scenario.assemble(llm, AlphaXSettings(), tmp_path)
+        for prompt in (parts.proposer.prompt, parts.designer.prompt):
+            sections = prompt.sections()
+            assert set(sections) == {"background", "data"}
+            assert "linear perpetual futures" in sections["background"] and "The clock:" in sections["background"]
+            assert "market.crypto.bar" in sections["data"] and "`$amount`" in sections["data"]
+        system = self.proposer_system(scenario, llm, backend, tmp_path)
+        assert "### Background" in system and "### Source data" in system and "market.crypto.bar" in system
+
+    def test_without_data_the_prompt_says_so(self, llm: LLMClient, backend: ScriptedBackend, tmp_path: Path) -> None:
         scenario = CryptoStrategyScenario(CryptoStrategySettings(data_root_dir=tmp_path))
-        assert NO_DATA_SCHEMA in scenario.context.data
+        assert NO_DATA_SCHEMA in self.proposer_system(scenario, llm, backend, tmp_path)
 
-    def test_prepare_rereads_the_schemas(self, scenario: CryptoStrategyScenario, data_root: Path) -> None:
-        assert "close_v2" not in scenario.context.data
+    def test_each_assembly_reads_the_schemas_again(
+        self,
+        scenario: CryptoStrategyScenario,
+        data_root: Path,
+        llm: LLMClient,
+        backend: ScriptedBackend,
+        tmp_path: Path,
+    ) -> None:
+        assert "close_v2" not in self.proposer_system(scenario, llm, backend, tmp_path)
         write_schema(data_root, "market.crypto.bar", [{"name": "close_v2", "type": "float64"}], version=2)
-        scenario.prepare()
-        assert "close_v2" in scenario.context.data
+        assert "close_v2" in self.proposer_system(scenario, llm, backend, tmp_path)
 
     def test_only_the_proposal_roles_are_implemented(
         self, scenario: CryptoStrategyScenario, llm: LLMClient, tmp_path: Path

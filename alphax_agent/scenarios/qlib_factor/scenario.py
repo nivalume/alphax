@@ -10,7 +10,7 @@ from alphax_agent.coder.costeer import CoSTEER
 from alphax_agent.coder.evaluation import EvaluationPipeline, EvaluationStage
 from alphax_agent.core.prompts import PromptLibrary
 from alphax_agent.core.registry import scenario_registry
-from alphax_agent.core.scenario import ResearchComponents, Scenario, ScenarioContext
+from alphax_agent.core.scenario import ResearchComponents, Scenario
 from alphax_agent.env.qlib import QlibEnvironment
 from alphax_agent.scenarios.qlib_factor.agents import (
     FactorCoderAgent,
@@ -25,6 +25,14 @@ from alphax_agent.scenarios.qlib_factor.evaluation import (
     FactorExecutionStage,
     FactorFormatStage,
     LookAheadStage,
+)
+from alphax_agent.scenarios.qlib_factor.prompts import (
+    FactorAnalystPrompt,
+    FactorCoderPrompt,
+    FactorCriticPrompt,
+    FactorDesignerPrompt,
+    FactorProposerPrompt,
+    FactorReflectorPrompt,
 )
 from alphax_agent.scenarios.qlib_factor.runner import QlibFactorRunner
 from alphax_agent.scenarios.qlib_factor.settings import QlibFactorSettings
@@ -53,7 +61,6 @@ class QlibFactorScenario(Scenario):
         self._env = environment or QlibEnvironment(settings.qlib)
         self._catalog = FactorDataCatalog(settings.data_path)
         self._prompts = PromptLibrary.from_package("alphax_agent.scenarios.qlib_factor")
-        self._context: ScenarioContext | None = None
 
     @property
     def environment(self) -> QlibEnvironment:
@@ -66,63 +73,50 @@ class QlibFactorScenario(Scenario):
     def prepare(self, *, force: bool = False) -> None:
         self._env.prepare()
         FactorDataExporter(self._env, self._factor_settings, self._catalog).export(force=force)
-        self._context = None
-
-    @property
-    def context(self) -> ScenarioContext:
-        if self._context is None:
-            settings = self._factor_settings
-            render = self._prompts.render
-            self._context = ScenarioContext(
-                background=render("scenario.background", market=settings.market),
-                data=self._catalog.describe(),
-                interface=render("scenario.interface"),
-                output_format=render("scenario.output_format"),
-                experiment_setting=render(
-                    "scenario.experiment_setting",
-                    label=settings.label,
-                    model_class=settings.model.get("class", "the configured model"),
-                    base_count=len(settings.base_features),
-                    base_names=list(settings.base_features),
-                    segments=settings.segments,
-                    backtest=settings.backtest,
-                    benchmark=settings.benchmark,
-                    promotion=settings.promotion.describe(),
-                ),
-                runtime=self._env.description,
-            )
-        return self._context
 
     def assemble(self, llm: LLMClient, platform: AlphaXSettings, run_dir: Path) -> ResearchComponents:
         settings = self._factor_settings
-        context = self.context
-        prompts = self._prompts
+        library = self._prompts
+        # Described once per run, after prepare() exported the data; every prompt that shows the data gets this text.
+        data = self._catalog.describe()
         profile = DataProfileTool(self._catalog)
         developer = CoSTEER(
-            FactorCoderAgent(llm, prompts, context, tools=[profile]),
-            EvaluationPipeline(self._stages(llm, context)),
+            FactorCoderAgent(
+                llm,
+                FactorCoderPrompt(
+                    library=library, settings=settings, data_description=data, runtime=self._env.description
+                ),
+                tools=[profile],
+            ),
+            EvaluationPipeline(
+                self._stages(llm, FactorCriticPrompt(library=library, settings=settings, data_description=data))
+            ),
             FactorWorkspaceFactory(self._catalog),
             platform.costeer,
             Path(run_dir) / "coding",
-            reflector=ReflectionAgent(llm, prompts, context),
+            reflector=ReflectionAgent(llm, FactorReflectorPrompt(library=library, settings=settings)),
         )
         return ResearchComponents(
             proposer=FactorHypothesisAgent(
-                llm, prompts, context, tools=[profile], history_window=platform.workflow.history_window
+                llm,
+                FactorProposerPrompt(library=library, settings=settings, data_description=data),
+                tools=[profile],
+                history_window=platform.workflow.history_window,
             ),
             designer=FactorDesignAgent(
                 llm,
-                prompts,
-                context,
+                FactorDesignerPrompt(library=library, settings=settings, data_description=data),
                 max_factors=settings.max_factors_per_experiment,
                 reserved_names=settings.base_features,
             ),
             developer=developer,
             runner=QlibFactorRunner(self._env, settings, self._catalog, Path(run_dir) / "backtests"),
-            summarizer=FactorFeedbackAgent(llm, prompts, context, settings.promotion),
+            summarizer=FactorFeedbackAgent(
+                llm, FactorAnalystPrompt(library=library, settings=settings), settings.promotion
+            ),
         )
 
-    def _stages(self, llm: LLMClient, context: ScenarioContext) -> list[EvaluationStage]:
+    def _stages(self, llm: LLMClient, critic_prompt: FactorCriticPrompt) -> list[EvaluationStage]:
         settings = self._factor_settings
         weights = settings.stage_weights
         stages: list[EvaluationStage] = [
@@ -131,6 +125,6 @@ class QlibFactorScenario(Scenario):
             LookAheadStage(self._env, self._catalog, settings.factor_timeout, weight=weights.get("look_ahead", 1.0)),
         ]
         if settings.use_critic:
-            critic = FactorCriticAgent(llm, self._prompts, context)
+            critic = FactorCriticAgent(llm, critic_prompt)
             stages.append(FactorCriticStage(critic, weight=weights.get("critic", 1.0)))
         return stages

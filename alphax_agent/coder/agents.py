@@ -10,15 +10,11 @@ from typing import Any, ClassVar
 from pydantic import BaseModel, Field, SerializeAsAny
 
 from alphax_agent.agents.agent import Agent
-from alphax_agent.agents.tool import Tool
 from alphax_agent.coder.lessons import ErrorSignature, Lesson, LessonBook, LessonDraft
 from alphax_agent.coder.tree import Operator, SolutionNode, SolutionTree
 from alphax_agent.core.exceptions import OutputParsingError
-from alphax_agent.core.prompts import PromptLibrary
-from alphax_agent.core.scenario import ScenarioContext
 from alphax_agent.core.task import Task
 from alphax_agent.core.text import Excerpt
-from alphax_agent.llm.client import LLMClient
 
 
 class CodeSolution(BaseModel):
@@ -39,32 +35,19 @@ class ImplementationRequest(BaseModel):
 class CoderAgent(Agent[CodeSolution]):
     """Writes the files of one task, as a draft, a repair of a failed parent or an improvement.
 
-    Scenarios subclass it to set ``required_files`` and their tools, and override the
-    ``coder.*`` templates in their own prompt file when the generic ones are not enough.
+    Scenarios subclass it to set ``required_files`` and their tools, and give it their own
+    prompt (a :class:`~alphax_agent.coder.prompts.CoderPrompt` or one with the same inputs)
+    that tells it about their data and interface.
     """
 
     name = "coder"
     output_model = CodeSolution
-    system_template = "coder.system"
-    user_template = "coder.user"
     required_files: ClassVar[tuple[str, ...]] = ()
     feedback_limit: ClassVar[int] = 6000
-
-    def __init__(
-        self,
-        llm: LLMClient,
-        prompts: PromptLibrary,
-        context: ScenarioContext,
-        tools: Sequence[Tool] = (),
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(llm, PromptLibrary.from_package("alphax_agent.coder").merged(prompts), tools, **kwargs)
-        self._context = context
 
     def implement(self, request: ImplementationRequest) -> CodeSolution:
         parent = request.parent
         return self._ask(
-            scenario=self._context.render(),
             task=request.task.render(),
             operator=request.operator.value,
             required_files=list(self.required_files),
@@ -180,17 +163,10 @@ class ReflectionAgent(Agent[ReflectionOutput]):
 
     name = "reflector"
     output_model = ReflectionOutput
-    system_template = "reflector.system"
-    user_template = "reflector.user"
     max_lessons: ClassVar[int] = 3
-
-    def __init__(self, llm: LLMClient, prompts: PromptLibrary, context: ScenarioContext, **kwargs: Any) -> None:
-        super().__init__(llm, PromptLibrary.from_package("alphax_agent.coder").merged(prompts), **kwargs)
-        self._context = context
 
     def reflect(self, transitions: Sequence[Transition], existing: Sequence[Lesson]) -> ReflectionOutput:
         output = self._ask(
-            scenario=self._context.render(["background", "interface", "output_format"]),
             transitions=[transition.model_dump() for transition in transitions],
             lessons=LessonBook.render(existing),
             max_lessons=self.max_lessons,

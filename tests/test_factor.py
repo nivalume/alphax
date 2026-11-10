@@ -22,7 +22,6 @@ from alphax_agent.core.experiment import ExperimentResult, Hypothesis, Implement
 from alphax_agent.core.feedback import ExperimentFeedback, ImplementationFeedback
 from alphax_agent.core.promotion import MetricCriterion, MetricGuard, PromotionRule
 from alphax_agent.core.prompts import PromptLibrary
-from alphax_agent.core.scenario import ScenarioContext
 from alphax_agent.core.trace import Trace, TraceRecord
 from alphax_agent.env.local import LocalEnvironment
 from alphax_agent.scenarios.qlib_factor.agents import FactorCriticAgent, FactorDesignAgent
@@ -34,13 +33,16 @@ from alphax_agent.scenarios.qlib_factor.evaluation import (
     LookAheadStage,
 )
 from alphax_agent.scenarios.qlib_factor.library import FactorLibrary
+from alphax_agent.scenarios.qlib_factor.prompts import FactorCriticPrompt, FactorDesignerPrompt
 from alphax_agent.scenarios.qlib_factor.runner import FactorCombiner, QlibWorkflowConfig
 from alphax_agent.scenarios.qlib_factor.settings import QlibFactorSettings
 from alphax_agent.scenarios.qlib_factor.task import FactorExperiment, FactorTask
 from alphax_agent.scenarios.qlib_factor.workspace import FactorWorkspaceFactory
 
 PROMPTS = PromptLibrary.from_package("alphax_agent.scenarios.qlib_factor")
-CONTEXT = ScenarioContext(background="factor research", data="daily bars", interface="factor.py")
+SETTINGS = QlibFactorSettings()
+CRITIC_PROMPT = FactorCriticPrompt(library=PROMPTS, settings=SETTINGS, data_description="daily bars")
+DESIGNER_PROMPT = FactorDesignerPrompt(library=PROMPTS, settings=SETTINGS, data_description="daily bars")
 
 
 @pytest.fixture
@@ -74,7 +76,7 @@ class TestFactorEvaluation:
                 FactorExecutionStage(env, 120, weight=0.3),
                 FactorFormatStage(catalog, max_nan_ratio=0.5, weight=0.3),
                 LookAheadStage(env, catalog, 120, weight=0.2),
-                FactorCriticStage(FactorCriticAgent(llm, PROMPTS, CONTEXT), weight=0.2),
+                FactorCriticStage(FactorCriticAgent(llm, CRITIC_PROMPT), weight=0.2),
             ]
         )
 
@@ -175,6 +177,16 @@ class TestPromotionRule:
         assert "IC rises by more than 0" in self.rule.describe()
 
 
+class TestFactorPrompts:
+    def test_each_prompt_is_told_only_the_sections_it_uses(self) -> None:
+        designer = DESIGNER_PROMPT.format_messages(hypothesis="h", library="l", reserved=["KLEN"], max_factors=2)
+        system = designer[0].text
+        assert "csi300 universe" in system and "daily bars" in system and "### Experiment setting" in system
+        assert "### Code interface" not in system
+        critic = CRITIC_PROMPT.format_messages(task="t", code="c", value_summary="v")[0].text
+        assert "### Code interface" in critic and "factor.py" in critic and "### Experiment setting" not in critic
+
+
 class TestFactorDesign:
     def test_rejects_names_of_existing_features(self, backend: ScriptedBackend, llm) -> None:
         spec = {"description": "d", "formulation": "f", "variables": {}}
@@ -186,7 +198,7 @@ class TestFactorDesign:
                 json.dumps({"factors": [{"name": "GAP_REVERSAL", **spec}]}),
             ],
         )
-        agent = FactorDesignAgent(llm, PROMPTS, CONTEXT, max_factors=2, reserved_names=["KLEN"])
+        agent = FactorDesignAgent(llm, DESIGNER_PROMPT, max_factors=2, reserved_names=["KLEN"])
         experiment = agent.design(Hypothesis(statement="gaps revert", rationale="overreaction"), Trace())
         assert isinstance(experiment, FactorExperiment)
         assert [task.name for task in experiment.tasks] == ["GAP_REVERSAL"]
@@ -196,7 +208,7 @@ class TestFactorDesign:
     def test_invalid_identifier_fails_after_retries(self, backend: ScriptedBackend, llm) -> None:
         bad = json.dumps({"factors": [{"name": "1bad name", "description": "d", "formulation": "f"}]})
         backend.on("factor_designer", [bad, bad, bad])
-        agent = FactorDesignAgent(llm, PROMPTS, CONTEXT, max_factors=2)
+        agent = FactorDesignAgent(llm, DESIGNER_PROMPT, max_factors=2)
         with pytest.raises(AgentError):
             agent.design(Hypothesis(statement="s", rationale="r"), Trace())
 

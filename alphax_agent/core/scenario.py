@@ -1,14 +1,15 @@
 """Scenarios: the pluggable unit of the platform.
 
-A scenario describes a research domain to the agents (:class:`ScenarioContext`) and wires
-the five research roles for it (:class:`ResearchComponents`). The workflow only talks to
-these two interfaces, so replacing the scenario replaces the whole research domain.
+A scenario prepares a research domain and wires the five research roles for it
+(:class:`ResearchComponents`). What each role's agent is told about the domain is up to that
+agent's own prompt. The workflow only talks to the roles, so replacing the scenario replaces
+the whole research domain.
 """
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Self
@@ -21,31 +22,6 @@ from alphax_agent.core.roles import Developer, ExperimentDesigner, HypothesisPro
 if TYPE_CHECKING:
     from alphax_agent.config.settings import AlphaXSettings
     from alphax_agent.llm.client import LLMClient
-
-
-class ScenarioContext(BaseModel):
-    """What every agent is told about the research domain."""
-
-    background: str
-    data: str
-    interface: str = ""
-    output_format: str = ""
-    experiment_setting: str = ""
-    runtime: str = ""
-
-    SECTION_TITLES: ClassVar[dict[str, str]] = {
-        "background": "Background",
-        "data": "Source data",
-        "interface": "Code interface",
-        "output_format": "Output format",
-        "experiment_setting": "Experiment setting",
-        "runtime": "Runtime environment",
-    }
-
-    def render(self, sections: Iterable[str] | None = None) -> str:
-        names = list(sections) if sections is not None else list(self.SECTION_TITLES)
-        blocks = [f"### {self.SECTION_TITLES[name]}\n{getattr(self, name)}" for name in names if getattr(self, name)]
-        return "\n\n".join(blocks)
 
 
 @dataclass(frozen=True)
@@ -85,10 +61,6 @@ class Scenario(ABC):
     @abstractmethod
     def prepare(self, *, force: bool = False) -> None:
         """Check the environment and build derived data; idempotent unless ``force``."""
-
-    @property
-    @abstractmethod
-    def context(self) -> ScenarioContext: ...
 
     @abstractmethod
     def assemble(self, llm: LLMClient, platform: AlphaXSettings, run_dir: Path) -> ResearchComponents:

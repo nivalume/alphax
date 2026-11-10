@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import pytest
 from pydantic import BaseModel
 from support import ScriptedBackend
 
 from alphax_agent.agents.agent import Agent
+from alphax_agent.agents.prompt import AgentPrompt
 from alphax_agent.agents.tool import Tool
 from alphax_agent.core.exceptions import AgentError, OutputParsingError
 from alphax_agent.core.prompts import PromptLibrary
@@ -30,14 +31,39 @@ class EchoTool(Tool[EchoArgs]):
         return args.text.upper()
 
 
-PROMPTS = PromptLibrary({"judge.system": "You judge {{ topic }}.", "judge.user": "Judge: {{ item }}"})
+LIBRARY = PromptLibrary(
+    {
+        "judge.system": "You judge {{ topic }}.{% if rubric is defined %}\n\n## Rubric\n{{ rubric }}{% endif %}",
+        "judge.user": "Judge: {{ item }}",
+        "judge.rubric": "Call it good when it is {{ quality }}.",
+    }
+)
+
+
+class JudgePrompt(AgentPrompt):
+    system_template = "judge.system"
+    user_template = "judge.user"
+    inputs = ("topic", "item")
+
+
+class RubricJudgePrompt(JudgePrompt):
+    """A prompt that fills a section of its own, from a field, through a private method."""
+
+    quality: str
+
+    def _rubric(self) -> str:
+        return self.library.render("judge.rubric", quality=self.quality)
+
+    def sections(self) -> dict[str, Any]:
+        return {"rubric": self._rubric()}
+
+
+PROMPTS = JudgePrompt(library=LIBRARY)
 
 
 class JudgeAgent(Agent[Verdict]):
     name = "judge"
     output_model = Verdict
-    system_template = "judge.system"
-    user_template = "judge.user"
     labels: ClassVar[set[str]] = {"good", "bad"}
 
     def judge(self, item: str) -> Verdict:
@@ -104,3 +130,28 @@ def test_gives_up_after_parse_budget(backend: ScriptedBackend, llm) -> None:
     backend.on("judge", ["no", "no", "no"])
     with pytest.raises(AgentError, match="no valid output"):
         JudgeAgent(llm, PROMPTS, max_parse_retries=2).judge("x")
+
+
+class TestAgentPrompt:
+    def test_renders_a_system_and_a_user_message(self) -> None:
+        system, user = PROMPTS.format_messages(topic="fruit", item="kiwi")
+        assert (system.type, system.text) == ("system", "You judge fruit.")
+        assert (user.type, user.text) == ("human", "Judge: kiwi")
+
+    def test_sections_are_filled_by_the_prompt_itself(self, backend: ScriptedBackend, llm) -> None:
+        backend.on("judge", ['{"label": "good", "confidence": 1}'])
+        JudgeAgent(llm, RubricJudgePrompt(library=LIBRARY, quality="ripe")).judge("kiwi")
+        system = backend.requests_of("judge")[0].messages[0].content
+        assert system.startswith("You judge items.") and "## Rubric\nCall it good when it is ripe." in system
+
+    def test_invoke_checks_the_declared_inputs(self) -> None:
+        assert PROMPTS.input_variables == ["topic", "item"]
+        value = PROMPTS.invoke({"topic": "fruit", "item": "kiwi"})
+        assert [message.text for message in value.to_messages()] == ["You judge fruit.", "Judge: kiwi"]
+        with pytest.raises(KeyError, match="item"):
+            PROMPTS.invoke({"topic": "fruit"})
+
+    def test_partial_variables(self) -> None:
+        fruit = PROMPTS.partial(topic="fruit")
+        assert fruit.input_variables == ["item"]
+        assert fruit.format_messages(item="kiwi")[0].text == "You judge fruit."

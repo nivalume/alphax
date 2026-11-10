@@ -16,13 +16,13 @@ alphax_agent/
                五个研究角色（HypothesisProposer / ExperimentDesigner / Developer / Runner / Summarizer）、
                Scenario、ScenarioRegistry、PromotionRule、PromptLibrary
   llm/         LLMClient（重试、缓存、用量统计、审计日志）+ LiteLLMBackend + 结构化输出解析
-  agents/      Agent 基类（prompt + tools + LLM → 经过校验的 pydantic 输出）、Tool、Toolbox
+  agents/      Agent 基类（prompt + tools + LLM → 经过校验的 pydantic 输出）、AgentPrompt、Tool、Toolbox
   env/         Environment 接口、LocalEnvironment（子进程，超时杀进程组）、QlibEnvironment
   coder/       CoSTEER：树搜索 + 反思经验库，LangGraph 实现
   workflow/    研究循环的 LangGraph 图、节点类、路由、ArtifactStore
   scenarios/
-    qlib_factor/  数据导出、因子工作区、评估阶段、5 个 Agent、qlib 回测 Runner、prompts
-    crypto_strategy/  数据 schema 渲染、假设和实验设计 2 个 Agent、prompts；其余角色是占位
+    qlib_factor/  数据导出、因子工作区、评估阶段、5 个 Agent 及各自的 prompt 类、qlib 回测 Runner
+    crypto_strategy/  数据 schema 渲染、假设和实验设计 2 个 Agent 及各自的 prompt 类；其余角色是占位
   app.py       组装入口 AlphaXApplication
   cli.py       命令行 alphax-agent（兼容 alphax 别名）
 ```
@@ -42,11 +42,19 @@ START → baseline → propose → design → develop → run → summarize → 
 
 ### Agent（`alphax_agent/agents`）
 
-凡是“prompt + 工具 + 调用 LLM”的组件都是 `Agent` 子类。子类声明 `name`、`output_model`（pydantic）、两个模板键，再提供一个有类型的方法（`propose`、`design`、`implement`、`review`、`summarize`）。基类负责：
+凡是“prompt + 工具 + 调用 LLM”的组件都是 `Agent` 子类。子类声明 `name`、`output_model`（pydantic），接收自己的 prompt 对象，再提供一个有类型的方法（`propose`、`design`、`implement`、`review`、`summarize`）。基类负责：
 
-- 渲染 Jinja2 模板，把输出 JSON schema 附在 system prompt 后；
+- 用 prompt 渲染 system 和 user 消息，把输出 JSON schema 附在 system prompt 后；
 - 工具调用循环（有轮数上限），工具参数用 pydantic 校验，工具报错以文本返回给模型；
 - 解析失败或领域校验失败（`_validate` 或每次调用传入的 validator）时，把错误发回模型要求重答，有次数上限。
+
+每个 Agent 的 prompt 是它自己的一个类，继承 `AgentPrompt`（即 `langchain_core` 的 `BaseChatPromptTemplate`），告诉模型什么、怎么写都由这个类决定。一个 prompt 由三层组成：
+
+- **YAML 段**：场景 `prompts.yaml` 里的 `system` / `user` 模板（如 `proposer.system`），以及几个 Agent 共用的段落（如 `scenario.background`）。模板自己决定各段放在哪里、用什么标题。
+- **prompt 类里的函数**：每个段落一个私有方法（如 `_background()`、`_experiment_setting()`），从类的字段（场景设置、数据描述等）渲染出来；`sections()` 返回这个 prompt 用到的段落，`inputs` 声明每次调用时由 Agent 传入的变量（历史、假设等）。
+- **通用渲染**：`AgentPrompt.format_messages(**inputs)` 合并段落、LangChain 的 partial 变量和调用参数，经 `PromptLibrary.render` 渲染（保留 `trim_blocks` 和 `StrictUndefined`）。`invoke({...})` 会检查 `inputs` 是否齐全。
+
+同一场景的几个 prompt 可以共用一个基类放共有段落（如 `FactorPrompt`、`CryptoPrompt`），但每个 prompt 只取自己需要的段落。通用的 `CoderAgent` / `ReflectionAgent` 的 `CoderPrompt` / `ReflectorPrompt` 不描述任何领域；场景用自己的 prompt 类加上段落，并在自己的 `prompts.yaml` 里覆盖 `coder.system` / `reflector.system`。
 
 `qlib_factor` 里的 Agent：`FactorHypothesisAgent`、`FactorDesignAgent`、`FactorCoderAgent`、`FactorCriticAgent`、`FactorFeedbackAgent`，以及通用的 `ReflectionAgent`。
 
@@ -291,7 +299,7 @@ alphax_runs/<run>/
 
 ## 扩展
 
-**新场景**：继承 `Scenario`，提供 `settings_model`、`context`（给 Agent 的场景描述）、`prepare()`、`assemble()`（返回五个角色）。在自己的包里声明 entry point 即可被发现，不需要改 alphax-agent：
+**新场景**：继承 `Scenario`，提供 `settings_model`、`prepare()`、`assemble()`（返回五个角色，并为每个 Agent 构造它自己的 prompt）。在自己的包里声明 entry point 即可被发现，不需要改 alphax-agent：
 
 ```toml
 [project.entry-points."alphax_agent.scenarios"]

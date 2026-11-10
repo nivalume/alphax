@@ -14,6 +14,7 @@ from alphax_agent.coder.evaluation import EvaluationContext, EvaluationPipeline,
 from alphax_agent.coder.graph import CoSTEERGraph, SearchSession
 from alphax_agent.coder.lessons import ErrorSignature, Lesson, LessonBook, LessonDraft
 from alphax_agent.coder.policy import GreedyPolicy, SearchPolicy, UCBPolicy
+from alphax_agent.coder.prompts import CoderPrompt, ReflectorPrompt
 from alphax_agent.coder.tree import Expansion, Operator, SolutionForest, SolutionNode, SolutionTree
 
 __all__ = [
@@ -21,6 +22,7 @@ __all__ = [
     "CoSTEERGraph",
     "CodeSolution",
     "CoderAgent",
+    "CoderPrompt",
     "ErrorSignature",
     "EvaluationContext",
     "EvaluationPipeline",
@@ -34,6 +36,7 @@ __all__ = [
     "Operator",
     "ReflectionAgent",
     "ReflectionOutput",
+    "ReflectorPrompt",
     "SearchPolicy",
     "SearchSession",
     "SolutionForest",
