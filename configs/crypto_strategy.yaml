@@ -1,0 +1,23 @@
+# alphax-agent run file: crypto strategy hypotheses and experiment designs.
+# Only the hypothesis and the design are implemented; run with `--until design` (see README).
+# Every value can be overridden by an environment variable, e.g. ALPHAX_AGENT_LLM__MODEL=deepseek/deepseek-chat.
+
+llm:
+  model: gpt-4o-mini            # any litellm model id
+  temperature: 0.2
+  max_retries: 4
+  cache_dir: ~/.alphax/agent/llm_cache  # replaying a run from the cache reproduces it without API calls
+  # api_base: https://my-gateway.example.com/v1
+  # api_key: set ALPHAX_AGENT_LLM__API_KEY instead of writing it here
+
+workflow:
+  max_loops: 20
+  max_consecutive_failures: 3
+  history_window: 8
+  run_root: alphax_runs
+
+scenario:
+  name: crypto_strategy
+  options:
+    data_root_dir: ~/jarvis-data   # schemas under schemas/, rows under crypto/
+    max_strategies_per_experiment: 2   # one mechanism and at most two variants

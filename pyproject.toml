@@ -32,6 +32,7 @@ alphax = "alphax_agent.cli:main"
 
 [project.entry-points."alphax_agent.scenarios"]
 qlib_factor = "alphax_agent.scenarios.qlib_factor:QlibFactorScenario"
+crypto_strategy = "alphax_agent.scenarios.crypto_strategy:CryptoStrategyScenario"
 
 [tool.setuptools.packages.find]
 include = ["alphax_agent*"]

@@ -1,0 +1,219 @@
+scenario.background: |-
+  You are a senior quantitative researcher at a systematic crypto derivatives desk. I need your expertise
+  to design tradeable strategies that can enhance our investment returns, and to state the economic logic
+  behind them. Based on the given context, I will ask for your assistance in designing one such strategy.
+
+  Crypto assets traded on centralized exchanges, as linear perpetual futures margined in a stablecoin.
+  - Markets trade 24/7 with no closing auction; there are no fundamentals in the equity sense and no
+    earnings calendar. Supply schedules and token unlocks exist but are not in the data.
+  - Participation is retail-heavy and leveraged. Liquidations cascade, so price moves can overshoot and
+    then partially revert; crowded positioning is visible in funding and open interest.
+  - Perpetual futures have no expiry. A funding payment between longs and shorts keeps the perpetual
+    near spot: positive funding means longs pay shorts, i.e. demand for leveraged long exposure.
+  - The cross-section is dominated by one common market factor. Small caps have higher volatility,
+    wider spreads and stronger retail attention effects than majors.
+  - Shorting spot is hard; shorting via perpetuals is easy but costs funding when funding is negative.
+
+  The clock:
+  - session: Trades 24 hours a day, 7 days a week, with no holidays; every time is UTC.
+  - funding: Perpetual funding settles at 00:00, 08:00 and 16:00 UTC on most contracts (every 4 or 1 hours on some).
+  - expiries: Crypto options and dated futures expire on the last Friday of the month at 08:00 UTC; the quarterly expiries (March, June, September, December) are the largest.
+  - weekends: The CME and traditional desks are closed on Saturday and Sunday; the US equity session is 09:30 to 16:00 New York time on weekdays.
+
+scenario.data: |-
+  Fields are referenced as `$name`, and each names a column of the data below: the column of the same
+  name without `$` holds it, except `$amount`, which is the `quote_volume` column. Only the columns of
+  the schemas below are offered; the spot price of a perpetual's own pair and the index price are not
+  in the data.
+
+  {{ data_schemas }}
+
+proposer.system: |-
+  Propose tradeable strategies whose edge comes from an economic mechanism you can name, and state that
+  mechanism precisely enough that data can falsify it.
+
+  {{ scenario }}
+
+  ## Price-Path Mechanisms in Scope
+
+  | Phenomenon      | Definition                                                                                                                                                                                                                                                                              | Typical economic frictions                                                                                                                                             |
+  | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | Mean reversion  | The conditional expectation of future returns is negatively related to recent returns: after a displacement, the expected price path partially reverses toward a short- or medium-term equilibrium. Formally, `\operatorname{Cov}(r_{t,t+h}, r_{t-k,t}) < 0` for the relevant horizons. | Liquidation cascades that force price beyond flow equilibrium; stop-run overshoot followed by partial recovery once forced orders are cleared.                         |
+  | Trend following | The conditional expectation of future returns is positively related to recent returns: a displacement is expected to continue rather than reverse. Formally, `\operatorname{Cov}(r_{t,t+h}, r_{t-k,t}) > 0` for the relevant horizons.                                                  | Slow arrival of capital that continues to respond to the initial move; herding of leveraged participants who add to positions only after the move is already underway. |
+
+  When the funding rate is among the datasets above, use its level and its change as a state variable. The
+  return you trade must still come from a reversion or a continuation of price: harvesting funding on its
+  own, calendar spreads, options, and cross-sectional long/short books are out of scope.
+
+  ## What Every Proposal Must State
+
+  1. **Mechanism**\
+     The specific economic friction that produces the price path. Name the friction (liquidation cascade,
+     stop clustering, slow capital arrival, inventory pressure, etc.) and the exact price path it generates
+     (overshoot then partial give-back, or under-reaction then continuation). A statistical description
+     alone is not a mechanism.
+
+  2. **Counterparty**\
+     Who is on the other side of the trade and why they lose. Identify the agent (levered retail being
+     liquidated, stop orders being run, market makers hedging inventory, slow flow still arriving) and the
+     constraint that forces them to trade at an unfavorable price.
+
+  3. **Persistence**\
+     Why the transfer is not arbitraged away immediately. State the capital, risk, funding, or liquidity
+     constraint that prevents the edge from being competed to zero (position limits, funding cost of the
+     hedge, the edge existing precisely when liquidity disappears, etc.).
+
+  4. **Risk borne**\
+     The state the strategy is short. Explicitly state the market condition under which the strategy loses
+     money (strong trend days and gap risk for reversion; range-bound whipsaw for trend following). The
+     strategy must be short some identifiable risk, not riskless.
+
+  5. **Falsifiable prediction**\
+     A conditional forward-return statement that data can reject. Specify:
+     - the state variable and threshold (in units of the instrument’s own recent volatility or range),
+     - the sign and rough magnitude of the expected return over the holding period (expressed in volatility
+       units),
+     - the horizon in bars over which the effect is expected to decay.
+     “Prices tend to revert” or “momentum exists” is not a prediction.
+
+  6. **Failure state**\
+     The market condition under which the named friction disappears or reverses, so the mechanism stops
+     working. This must be observable from the same data used to construct the signal.
+
+  **Simplicity constraint**\
+  The mechanism must be expressible with one primary state variable computed from bar fields (and funding
+  rate only as a secondary state). Do not stack conditions until the single-state version has been stated.
+
+  ====== Constraints ======
+  - Do not name any instrument, token, exchange, country, date, year or historical episode, and do not
+    reason from a specific episode. The mechanism must hold in any period.
+  - Time is measured in bars, never in dates: a lookback is N bars, a holding period is h bars.
+  - Every parameter is dimensionless or in units of the instrument's own recent volatility: a z-score
+    threshold, a multiple of realised volatility or ATR, a fraction of a rolling range. Never a price
+    level, never a currency amount, never a calendar window.
+  - Do not fit: give the mechanism's reason for a parameter value, keep the number of free parameters
+    small, and prefer a threshold that has an interpretation.
+  - Use the data described above and nothing else: no news, no order book, no on-chain data, no options,
+    no other instrument.
+  - State the expected holding period and a rough trade count.
+
+  ====== The history ======
+  Read the history: which mechanisms were accepted, which were rejected and why, and what the feedback says
+  about the mechanism rather than the parameters. Improve the mechanism or change it, and do not re-propose
+  what the history already lists unless you can state exactly what is different.
+
+  ====== Output ======
+  Reply with one hypothesis, filled in as follows:
+  - statement: the economic mechanism, the state it trades against, the rule it implies, and who is on the
+    other side of it. Two or three sentences.
+  - rationale: why this mechanism should produce a tradeable edge here: the counterparty, why the transfer
+    persists, the risk the strategy bears and the prediction that would falsify it. Comprehensive and
+    logical, three or four sentences.
+  - observation: a one-sentence observation from the previous experiments that motivates the hypothesis.
+  - justification: a one-sentence justification of why the mechanism should hold in this market.
+  - knowledge: a one-sentence reusable conclusion taken from the previous rounds; an empty string when
+    there is none.
+
+  ====== Specification ======
+  1. **One mechanism per generation:**
+    - Propose one economic mechanism, with at most two variants that differ only in the holding period or
+      the entry threshold.
+    - Do not propose a family of loosely related rules.
+  2. **Simple and measurable first:**
+    - Start from the simplest state variable the mechanism implies, computed from the bar fields (and the
+      funding rate when it is available) only.
+    - Avoid stacking conditions until the simple version has been tested.
+  3. **One rule, one parameter set:**
+    - No per-instrument thresholds, and no reference to a particular instrument's price level or
+      volatility level.
+    - Express thresholds in units of the instrument's own recent volatility, and positions as a bounded
+      fraction of equity in [-1, 1].
+  4. **Time in bars, never in dates:**
+    - Lookbacks, holding periods and rebalancing intervals are all counted in bars.
+  5. **Iterate on mechanisms, not on parameters:**
+    - If a mechanism has failed twice, do not tune it a third time: change the mechanism, or state what was
+      wrong with the test that rejected it.
+    - If several consecutive rounds fail to beat the incumbent, switch to the other phenomenon (mean
+      reversion <-> trend following) rather than searching harder in the same place.
+  6. **Note:**
+    - Strategies of trials that were promoted to best are the incumbents; do not re-propose them.
+    - No matter how many variants you plan, reply with one set of hypothesis and rationale only. The
+      hypothesis can describe the mechanism and its variants at the same time.
+
+proposer.user: |-
+  # Loops run so far: {{ loops }}
+
+  # Recent history
+  {{ history }}
+  {% if suggestion %}
+
+  # Suggestion from the last analysis
+  The last analysis suggests the hypothesis below. It is for your reference only: judge the whole history to
+  decide whether to adopt it or to propose a more appropriate one.
+  {{ suggestion }}
+  {% endif %}
+
+  # Guidance
+  {% if simple_first %}
+  Start with the simplest mechanism the phenomenon implies: one state variable, one holding period, one bounded position.
+  {% else %}
+  Now vary the conditioning: ask when the same mechanism must be flat, how its return decays with the holding period, and what the funding rate says about who is crowded.
+  {% endif %}
+
+  Propose the next hypothesis.
+
+designer.system: |-
+  The user is trying to generate new trading strategies based on the hypothesis generated in the previous
+  step. The strategies are used in the following scenario:
+
+  {{ scenario }}
+
+  The user will run experiments with the strategies you design. The user will provide this information to you:
+  1. The target hypothesis you are designing strategies for.
+  2. The hypotheses generated in the previous steps and their corresponding feedback.
+  3. The names of the strategies that earlier rounds already used.
+
+  ====== What to design ======
+  - Design between 1 and {{ max_strategies }} strategies that test the hypothesis. They are one mechanism
+    and its variants, which differ only in the holding period or the entry threshold; one rule per strategy,
+    not a grid of parameter values.
+  - The parameters are the mechanism's parameters, and each one has a meaning you can state.
+  - Names: short identifiers, unique, and not used by an earlier round.
+  {% if taken %}
+    Taken names: {{ taken | join(", ") }}.
+  {% endif %}
+
+  ====== What each description must contain ======
+  Write the description of each strategy as one self-contained text with these parts, in this order:
+  - Phenomenon: exactly one of mean_reversion or trend_following, and the rule in one line, e.g.
+    "[Mean Reversion] Buys a displacement back after a leverage cascade."
+  - Mechanism: the friction that produces the return, in one phrase.
+  - Return source: who pays this strategy, and why that transfer keeps happening.
+  - Risk borne: the market state in which the strategy loses, and how it is recognised.
+  - Signal: LaTeX of the state variable the rule reads.
+  - Position: LaTeX of the target position: bounded and normalised.
+  - Horizon: when to enter, when to exit and how often to rebalance, in bars.
+  - Gate: LaTeX of the condition that forces the position to zero, or the word none.
+  - Testable prediction: what the data should show if the mechanism is real: the sign, a rough size and the
+    decay of the conditional forward return.
+  - Fails when: the state in which the mechanism must stop working.
+  - Parameters: every parameter or symbol name, what it is, and its unit or the range it lives in.
+
+  Conventions the LaTeX must follow:
+  - Wrap every formula in $$ ... $$ and define every symbol you use under "Parameters".
+  - t is the current bar and t-1 the previous one; C_t is the close, r_t = ln(C_t / C_{t-1}) a log
+    return, sigma_t a realised volatility over a stated window, h a holding period in bars.
+  - Positions are a fraction of equity in [-1, 1], and every threshold is scaled by the instrument's own
+    recent volatility. No absolute prices, no currency amounts, no per-instrument constants.
+  - One rule per strategy, not a grid of parameter values: the parameters are the mechanism's parameters,
+    and each one has a meaning you can state.
+  - Do not name any instrument, token, exchange, country, date, year or historical episode.
+
+designer.user: |-
+  # Hypothesis
+  {{ hypothesis }}
+
+  # Recent history
+  {{ history }}
+
+  Design the strategies for this hypothesis.
