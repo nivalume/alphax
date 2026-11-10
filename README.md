@@ -2,7 +2,10 @@
 
 alphax-agent 是一个由 LLM 驱动的 alpha 研究与因子挖掘平台。研究循环（提出假设 → 设计实验 → 写代码 → 回测 → 评估）和编码搜索都实现为 LangGraph 图，LLM 调用统一走 litellm。设计参考 RD-Agent，核心抽象可替换：场景（scenario）、编码器（CoSTEER）、执行环境（environment）、工作流（workflow）、Agent。
 
-当前内置场景 `qlib_factor`：在 qlib 数据上挖掘量价因子，因子写成 Python，用 LightGBM + TopkDropout 策略回测。
+当前内置场景：
+
+- `qlib_factor`：在 qlib 数据上挖掘量价因子，因子写成 Python，用 LightGBM + TopkDropout 策略回测。
+- `crypto_strategy`：为加密永续合约提出均值回归 / 趋势跟踪策略的经济学假设，并把假设设计成可回测的规则。目前只实现假设和实验设计两步，环境、编码、回测、总结和 baseline 留空。
 
 ## 架构
 
@@ -19,6 +22,7 @@ alphax_agent/
   workflow/    研究循环的 LangGraph 图、节点类、路由、ArtifactStore
   scenarios/
     qlib_factor/  数据导出、因子工作区、评估阶段、5 个 Agent、qlib 回测 Runner、prompts
+    crypto_strategy/  数据 schema 渲染、假设和实验设计 2 个 Agent、prompts；其余角色是占位
   app.py       组装入口 AlphaXApplication
   cli.py       命令行 alphax-agent（兼容 alphax 别名）
 ```
@@ -87,6 +91,32 @@ schedule ──Send(每个未解决任务)──▶ attempt（并行：写代码
 | 晋升 | `PromotionRule`：主指标（默认 IC）必须提升，守护指标（超额年化收益、最大回撤）恶化不超过容差。决策由规则做，LLM 只负责分析和建议下一步，结果可复现、可审计 |
 
 因子库 = 被晋升实验中实际进入回测的因子。
+
+## crypto_strategy 场景
+
+从 RD-Agent 的 crypto 场景移植而来，只保留“策略”这一支的两个提示词阶段。
+
+| 环节 | 实现 |
+|---|---|
+| 数据描述 | `render_data_schemas` 读 `<data_root_dir>/schemas/*.json`，只描述 K 线（`market.crypto.bar`）和资金费率（`market.crypto_funding_rate`），且行数据必须在盘上；没有 schema 时提示词里写明“没有可用的数据描述” |
+| 假设 | `StrategyHypothesisAgent`：每轮提出一个经济机制（均值回归或趋势跟踪），要求写清摩擦、对手方、为什么不被套利掉、承担的风险、可证伪的预测和失效状态；提示词不允许出现具体标的、交易所、日期，参数一律无量纲、时间以 bar 计 |
+| 实验设计 | `StrategyDesignAgent`：把机制写成至多 `max_strategies_per_experiment` 个策略（一个机制及其变体）。每个策略只有名称和一段描述，描述里该写什么由提示词规定（LaTeX 的信号、仓位、闸门，持有期，可检验预测，参数含义等），代码里没有固定策略的结构。实验就是核心的 `Experiment` |
+| 环境、编码、回测、总结、baseline | 未实现。`PendingDeveloper`、`PendingRunner`、`PendingSummarizer` 被调用时抛出 `ConfigurationError`，没有 baseline |
+
+因为后面的角色是空的，用 `--until design` 只跑到实验设计：
+
+```bash
+alphax-agent run -c configs/crypto_strategy.yaml --until design
+```
+
+不加 `--until` 时，一轮会在 `develop` 步失败并记为失败轮，连续失败达到 `max_consecutive_failures` 后停止。
+
+场景选项（`scenario.options`）：
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `ALPHAX_AGENT_SCENARIO__OPTIONS__DATA_ROOT_DIR` | `~/jarvis-data` | 数据根目录：schema 在 `schemas/`，行数据在 `crypto/` 下；支持 `~` 和 `$VAR` |
+| `ALPHAX_AGENT_SCENARIO__OPTIONS__MAX_STRATEGIES_PER_EXPERIMENT` | `2` | 每个实验的策略数上限 |
 
 ## 安装
 
@@ -239,16 +269,25 @@ print(report.render())
 ```
 alphax_runs/<run>/
   settings.json      本次运行的配置（密钥已脱敏）
+  run.json           场景、开始/结束时间、进程号、状态（running / finished / failed / interrupted）、运行选项
+  events.jsonl       每一轮每一步的开始、结束或失败，带耗时
   baseline.json      仅基础特征的回测结果
   loops/NNN.json     每轮的假设、实验（任务、代码、评估）、结果、反馈
-  llm_calls.jsonl    每次 LLM 调用的 agent、请求、响应、耗时
+  llm_calls.jsonl    每次 LLM 调用的 agent、请求、响应、推理内容、所属上下文、耗时
   summary.json       每轮指标与决策、各 agent 的 token 用量与成本
   workspaces/
     coding/<实验>/<任务>/<轮次_算子_节点>/   每次尝试的代码与输出；search_tree.json；lessons.json
     backtests/<实验>/                        qlib workflow.yaml、合并后的因子、mlruns
 ```
 
-配置 `llm.cache_dir` 后，相同请求从缓存返回，可在不调用 API 的情况下重放一次运行。
+`llm_calls.jsonl` 每行除了请求和响应，还有两项供事后查看：
+
+- `reasoning`：模型的推理内容。只有服务商返回时才有（litellm 的 `reasoning_content`，如 DeepSeek 的推理模型、Anthropic 的 thinking）；`response.usage.reasoning_tokens` 是其中花在推理上的 token 数。
+- `context`：这次调用属于哪里。工作流内的调用有 `loop` 和 `stage`；agent 调用有 `conversation`（同一次 agent 调用的工具轮次、修复重答共用一个 id）和 `turn`；编码尝试里的调用还有 `task_id`、`task`、`node_id`（对应 `search_tree.json` 里的节点）、`operator`、`round`、`parent_id`。
+
+`run.json` 在运行开始时写入、结束时更新。进程被强杀时它停在 `running`，此时可以用 `pid` 判断进程是否还在。`events.jsonl` 每行 `{time, loop, stage, event, seconds, ...}`，`event` 是 `started`、`finished` 或 `failed`（失败时带 `error_type` 和 `message`）。这两项和 `reasoning`、`context` 只在这些记录加入之后产生的 run 里有，旧 run 里没有。
+
+配置 `llm.cache_dir` 后，相同请求从缓存返回，可在不调用 API 的情况下重放一次运行。缓存里的旧条目没有推理内容。
 
 ## 扩展
 
