@@ -36,6 +36,7 @@ from alphax_agent.workflow.nodes import (
     RunNode,
     StepRoute,
     SummarizeNode,
+    TrackedStep,
 )
 from alphax_agent.workflow.state import ResearchState, StateView
 
@@ -106,7 +107,7 @@ class ResearchWorkflow:
             RecordNode(self._store),
         ]
         for node in nodes:
-            builder.add_node(node.name, node)
+            builder.add_node(node.name, TrackedStep(node, self._store))
         builder.add_edge(START, BaselineNode.name)
         builder.add_edge(BaselineNode.name, ProposeNode.name)
         for step, following in ((ProposeNode, DesignNode), (DesignNode, DevelopNode), (DevelopNode, RunNode)):

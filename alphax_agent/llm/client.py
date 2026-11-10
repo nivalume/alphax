@@ -15,6 +15,7 @@ from alphax_agent.config.settings import LLMSettings
 from alphax_agent.core.exceptions import LLMTransientError
 from alphax_agent.llm.backend import ChatBackend, LiteLLMBackend
 from alphax_agent.llm.cache import ResponseCache
+from alphax_agent.llm.context import current_context
 from alphax_agent.llm.types import ChatMessage, ChatRequest, ChatResponse, TokenUsage
 
 logger = logging.getLogger(__name__)
@@ -38,10 +39,12 @@ class LLMAuditLog:
             "agent": request.agent,
             "seconds": round(seconds, 3),
             "request": request.model_dump(mode="json"),
-            "response": None if response is None else response.model_dump(mode="json"),
+            "response": None if response is None else response.model_dump(mode="json", exclude={"reasoning"}),
+            "reasoning": None if response is None else response.reasoning,
+            "context": current_context(),
             "error": error,
         }
-        line = json.dumps(entry, ensure_ascii=False)
+        line = json.dumps(entry, ensure_ascii=False, default=str)
         with self._lock, self._path.open("a", encoding="utf-8") as handle:
             handle.write(line + "\n")
 

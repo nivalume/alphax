@@ -87,25 +87,32 @@ class AlphaXApplication:
             else ArtifactStore.create(settings.workflow.run_root, settings.workflow.run_name)
         )
         store.save_settings(settings.snapshot())
-        llm = self._client(store)
         scenario = self.scenario
-        scenario.prepare()
-        components = scenario.assemble(llm, settings, store.workspace_dir)
-        workflow = ResearchWorkflow(components, settings.workflow, store)
-        history = store.load_records(scenario.experiment_model) if resume is not None else []
-        baseline = store.load_baseline() if resume is not None else None
-        logger.info(
-            "Run %s: scenario %s, %d loop(s)%s",
-            store.run_dir.name,
-            scenario.name,
-            loops or settings.workflow.max_loops,
-            f", resuming after {len(history)}" if history else "",
-        )
+        store.start_run(scenario=scenario.name, options={"loops": loops, "until": until, "resume": resume is not None})
         try:
+            llm = self._client(store)
+            scenario.prepare()
+            components = scenario.assemble(llm, settings, store.workspace_dir)
+            workflow = ResearchWorkflow(components, settings.workflow, store)
+            history = store.load_records(scenario.experiment_model) if resume is not None else []
+            baseline = store.load_baseline() if resume is not None else None
+            logger.info(
+                "Run %s: scenario %s, %d loop(s)%s",
+                store.run_dir.name,
+                scenario.name,
+                loops or settings.workflow.max_loops,
+                f", resuming after {len(history)}" if history else "",
+            )
             trace = workflow.run(loops=loops, history=history, baseline=baseline, until=until)
-        finally:
-            usage = llm.usage_by_agent()
+        except KeyboardInterrupt:
+            store.finish_run("interrupted")
+            raise
+        except Exception:
+            store.finish_run("failed")
+            raise
+        usage = llm.usage_by_agent()
         store.save_summary(trace, usage, scenario.headline_metrics)
+        store.finish_run("finished")
         return RunReport(run_dir=store.run_dir, trace=trace, usage=usage, headline_metrics=scenario.headline_metrics)
 
     def _client(self, store: ArtifactStore) -> LLMClient:

@@ -30,6 +30,8 @@ from alphax_agent.core.prompts import PromptLibrary
 from alphax_agent.core.scenario import ScenarioContext
 from alphax_agent.core.task import Task
 from alphax_agent.core.workspace import Workspace, WorkspaceFactory
+from alphax_agent.llm.client import LLMAuditLog
+from alphax_agent.llm.context import call_context, current_context
 
 CONTEXT = ScenarioContext(background="Toy scenario", data="none", interface="write main.py")
 
@@ -230,6 +232,41 @@ class TestCoSTEER:
             Path(experiment.implementations[experiment.tasks[0].id].workspace.path, "main.py").read_text()
             == "print('fixed')"
         )
+
+    def test_model_calls_are_tagged_with_the_task_and_the_attempt(
+        self, backend: ScriptedBackend, llm, tmp_path: Path
+    ) -> None:
+        backend.on("coder", coder_reply)
+        backend.on("reflector", lambda request: json.dumps({"lessons": [], "reinforced": []}))
+        llm.attach_audit(LLMAuditLog(tmp_path / "calls.jsonl"))
+        developer = CoSTEER(
+            ToyCoder(llm, PromptLibrary(), CONTEXT),
+            EvaluationPipeline([ContainsStage()]),
+            PlainFactory(),
+            CoSTEERSettings(policy="greedy", max_rounds=3, target_score=0.9),
+            tmp_path / "coding",
+            reflector=ReflectionAgent(llm, PromptLibrary(), CONTEXT),
+        )
+        experiment = Experiment(tasks=[Task(name="alpha", description="a"), Task(name="beta", description="b")])
+        with call_context(loop=4, stage="develop"):
+            developer.develop(experiment, None)
+        assert current_context() == {}
+
+        lines = [json.loads(line) for line in (tmp_path / "calls.jsonl").read_text().splitlines()]
+        coder = [line["context"] for line in lines if line["agent"] == "coder"]
+        # The attempts run in worker threads; their calls still know the loop, stage, task and node.
+        assert {(c["loop"], c["stage"], c["task"], c["operator"], c["round"]) for c in coder} == {
+            (4, "develop", "alpha", "draft", 0),
+            (4, "develop", "beta", "draft", 0),
+            (4, "develop", "alpha", "repair", 1),
+            (4, "develop", "beta", "repair", 1),
+        }
+        assert {c["task_id"] for c in coder} == {task.id for task in experiment.tasks}
+        tree = json.loads((tmp_path / "coding" / experiment.id / "search_tree.json").read_text())
+        assert {c["node_id"] for c in coder} == {entry["id"] for entries in tree.values() for entry in entries}
+        assert {c["parent_id"] for c in coder if c["operator"] == "repair"} <= {c["node_id"] for c in coder}
+        reflections = [line["context"] for line in lines if line["agent"] == "reflector"]
+        assert reflections and all("round" in c and c["loop"] == 4 for c in reflections)
 
     def test_raises_when_nothing_is_accepted(self, backend: ScriptedBackend, llm, tmp_path: Path) -> None:
         backend.on("coder", lambda request: json.dumps({"rationale": "", "files": {"main.py": "broken"}}))

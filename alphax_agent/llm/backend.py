@@ -87,13 +87,18 @@ class LiteLLMBackend(ChatBackend):
         message = choice.message
         tool_calls = [self._to_tool_call(call) for call in (getattr(message, "tool_calls", None) or [])]
         usage = getattr(raw, "usage", None)
+        details = getattr(usage, "completion_tokens_details", None)
+        # litellm puts DeepSeek-style reasoning and Anthropic thinking into `reasoning_content`.
+        reasoning = getattr(message, "reasoning_content", None)
         return ChatResponse(
             content=message.content,
+            reasoning=reasoning if isinstance(reasoning, str) and reasoning else None,
             tool_calls=tool_calls,
             usage=TokenUsage(
                 calls=1,
                 prompt_tokens=int(getattr(usage, "prompt_tokens", 0) or 0),
                 completion_tokens=int(getattr(usage, "completion_tokens", 0) or 0),
+                reasoning_tokens=int(getattr(details, "reasoning_tokens", 0) or 0),
                 cost=self._cost(raw),
             ),
             model=str(getattr(raw, "model", "") or self.model),

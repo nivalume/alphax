@@ -20,6 +20,7 @@ from alphax_agent.core.feedback import ExperimentFeedback, StepFailure
 from alphax_agent.core.roles import Developer, ExperimentDesigner, HypothesisProposer, Runner, Summarizer
 from alphax_agent.core.text import Excerpt
 from alphax_agent.core.trace import Trace, TraceRecord
+from alphax_agent.llm.context import call_context
 from alphax_agent.workflow.artifacts import ArtifactStore
 from alphax_agent.workflow.state import ResearchState, StateView
 
@@ -52,6 +53,55 @@ class ResearchNode(ABC):
 
     @abstractmethod
     def execute(self, view: StateView) -> dict[str, Any]: ...
+
+
+class TrackedStep:
+    """A node of the research graph, observed.
+
+    Tags every model call made inside the node with its loop and stage (see :mod:`alphax_agent.llm.context`)
+    and appends the step's start, finish or failure, with its duration, to the run's ``events.jsonl``. The node
+    itself does not know it is being observed.
+    """
+
+    def __init__(self, node: ResearchNode, store: ArtifactStore) -> None:
+        self._node = node
+        self._store = store
+
+    @property
+    def name(self) -> str:
+        return self._node.name
+
+    def __call__(self, state: ResearchState) -> dict[str, Any]:
+        loop, stage = state["loop"], self._node.name
+        self._store.append_event(loop=loop, stage=stage, event="started")
+        started = time.monotonic()
+        try:
+            with call_context(loop=loop, stage=stage):
+                update = self._node(state)
+        except Exception as exc:  # a node that does not recover: the run stops, the event says where
+            self._store.append_event(
+                loop=loop,
+                stage=stage,
+                event="failed",
+                seconds=round(time.monotonic() - started, 3),
+                error_type=type(exc).__name__,
+                message=Excerpt.middle(str(exc), 4000),
+            )
+            raise
+        seconds = round(time.monotonic() - started, 3)
+        failure = update.get("failure")
+        if failure is None:
+            self._store.append_event(loop=loop, stage=stage, event="finished", seconds=seconds)
+        else:
+            self._store.append_event(
+                loop=loop,
+                stage=stage,
+                event="failed",
+                seconds=seconds,
+                error_type=failure.error_type,
+                message=failure.message,
+            )
+        return update
 
 
 class BaselineNode(ResearchNode):

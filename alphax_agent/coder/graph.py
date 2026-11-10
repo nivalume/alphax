@@ -33,6 +33,7 @@ from alphax_agent.core.exceptions import AgentError
 from alphax_agent.core.experiment import Experiment
 from alphax_agent.core.feedback import ImplementationFeedback, StageResult
 from alphax_agent.core.workspace import WorkspaceFactory
+from alphax_agent.llm.context import call_context
 
 logger = logging.getLogger(__name__)
 
@@ -183,17 +184,26 @@ class CoSTEERGraph:
             peer_names=session.task_names,
         )
         rationale = ""
-        try:
-            solution = self._coder.implement(request)
-        except AgentError as exc:
-            feedback = ImplementationFeedback(
-                stages=[StageResult(stage="coding", passed=False, score=0.0, message=str(exc))]
-            )
-        else:
-            rationale = solution.rationale
-            workspace.files.update(solution.files)
-            workspace.materialize()
-            feedback = self._pipeline.evaluate(tree.task, workspace)
+        # Every model call of the attempt (coder, critic) is tagged with the task and the node it produces.
+        with call_context(
+            task_id=tree.task.id,
+            task=tree.task.name,
+            node_id=node_id,
+            operator=expansion.operator.value,
+            round=round_index,
+            parent_id=parent.id if parent is not None else None,
+        ):
+            try:
+                solution = self._coder.implement(request)
+            except AgentError as exc:
+                feedback = ImplementationFeedback(
+                    stages=[StageResult(stage="coding", passed=False, score=0.0, message=str(exc))]
+                )
+            else:
+                rationale = solution.rationale
+                workspace.files.update(solution.files)
+                workspace.materialize()
+                feedback = self._pipeline.evaluate(tree.task, workspace)
         node = SolutionNode(
             id=node_id,
             task_id=tree.task.id,
@@ -233,7 +243,8 @@ class CoSTEERGraph:
         batch = sorted(transitions, key=lambda transition: Transition.PRIORITY[transition.kind])
         batch = batch[: self.REFLECTION_BATCH]
         try:
-            output = self._reflector.reflect(batch, session.lessons.select(None, self.LESSON_CONTEXT))
+            with call_context(round=round_index):
+                output = self._reflector.reflect(batch, session.lessons.select(None, self.LESSON_CONTEXT))
         except AgentError as exc:
             logger.warning("Reflection skipped in round %d: %s", round_index, exc)
             return

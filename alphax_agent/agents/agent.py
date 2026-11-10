@@ -6,6 +6,7 @@ import logging
 from collections.abc import Callable, Sequence
 from functools import cache
 from typing import Any, ClassVar, Generic, TypeVar
+from uuid import uuid4
 
 from pydantic import BaseModel
 
@@ -13,6 +14,7 @@ from alphax_agent.agents.tool import Tool, Toolbox
 from alphax_agent.core.exceptions import AgentError, OutputParsingError
 from alphax_agent.core.prompts import PromptLibrary
 from alphax_agent.llm.client import LLMClient
+from alphax_agent.llm.context import call_context
 from alphax_agent.llm.parser import StructuredOutputParser
 from alphax_agent.llm.types import ChatMessage
 
@@ -82,12 +84,20 @@ class Agent(Generic[OutputT]):
         return output
 
     def _converse(self, messages: list[ChatMessage], validator: Callable[[OutputT], OutputT]) -> OutputT:
+        # Every model call of this conversation (tool rounds, repair rounds) carries the same id in the audit log.
+        with call_context(conversation=uuid4().hex[:8]):
+            return self._converse_turns(messages, validator)
+
+    def _converse_turns(self, messages: list[ChatMessage], validator: Callable[[OutputT], OutputT]) -> OutputT:
         tool_rounds = 0
         refused_tool_rounds = 0
         parse_failures = 0
+        turn = 0
         tools = self._toolbox.specs() if self._toolbox else None
         while True:
-            response = self._llm.chat(messages, tools=tools, json_mode=tools is None, agent=self.name)
+            with call_context(turn=turn):
+                response = self._llm.chat(messages, tools=tools, json_mode=tools is None, agent=self.name)
+            turn += 1
             if response.tool_calls:
                 messages.append(response.as_message())
                 if tool_rounds < self._max_tool_rounds:

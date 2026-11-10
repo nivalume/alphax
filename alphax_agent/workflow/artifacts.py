@@ -4,9 +4,11 @@
 
     <run_dir>/
       settings.json        settings of the run, secrets masked
+      run.json             scenario, start/finish time, pid and status (running/finished/failed/interrupted)
+      events.jsonl         start, finish or failure of every step of every loop, with its duration
       baseline.json        result of the reference setup
       loops/007.json       one trace record per loop (hypothesis, experiment, feedback)
-      llm_calls.jsonl      audit log of every model call
+      llm_calls.jsonl      audit log of every model call: request, response, reasoning, loop/stage/task context
       workspaces/          code, data links and backtest outputs of every attempt
       summary.json         per-loop metrics and decisions, token usage
 """
@@ -14,15 +16,23 @@
 from __future__ import annotations
 
 import json
+import os
+import threading
 from collections.abc import Mapping, Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from alphax_agent.core.experiment import Experiment, ExperimentResult, Hypothesis
 from alphax_agent.core.feedback import ExperimentFeedback
 from alphax_agent.core.trace import Trace, TraceRecord
 from alphax_agent.llm.types import TokenUsage
+
+RunStatus = Literal["running", "finished", "failed", "interrupted"]
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat()
 
 
 class ArtifactStore:
@@ -30,6 +40,7 @@ class ArtifactStore:
         self._run_dir = Path(run_dir).resolve()
         self._run_dir.mkdir(parents=True, exist_ok=True)
         self.loops_dir.mkdir(exist_ok=True)
+        self._events_lock = threading.Lock()
 
     @classmethod
     def create(cls, run_root: Path, run_name: str | None = None) -> ArtifactStore:
@@ -58,8 +69,43 @@ class ArtifactStore:
     def llm_audit_path(self) -> Path:
         return self._run_dir / "llm_calls.jsonl"
 
+    @property
+    def events_path(self) -> Path:
+        return self._run_dir / "events.jsonl"
+
     def save_settings(self, snapshot: Mapping[str, Any]) -> None:
         self._write_json("settings.json", snapshot)
+
+    def start_run(self, *, scenario: str, options: Mapping[str, Any]) -> None:
+        """Mark the run as running in this process. A resumed run keeps its original start time."""
+        previous = self.load_run()
+        self._write_json(
+            "run.json",
+            {
+                "scenario": scenario,
+                "started_at": previous["started_at"] if previous else _now(),
+                "finished_at": None,
+                "pid": os.getpid(),
+                "status": "running",
+                "options": dict(options),
+                "resumes": previous.get("resumes", 0) + 1 if previous else 0,
+            },
+        )
+
+    def finish_run(self, status: RunStatus) -> None:
+        current = self.load_run()
+        if current is not None:
+            self._write_json("run.json", {**current, "status": status, "finished_at": _now()})
+
+    def load_run(self) -> dict[str, Any] | None:
+        path = self._run_dir / "run.json"
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+    def append_event(self, **fields: Any) -> None:
+        """Add one line to ``events.jsonl``; safe to call from several threads."""
+        line = json.dumps({"time": _now(), **fields}, ensure_ascii=False, default=str)
+        with self._events_lock, self.events_path.open("a", encoding="utf-8") as handle:
+            handle.write(line + "\n")
 
     def save_baseline(self, result: ExperimentResult | None) -> None:
         if result is not None:
@@ -114,6 +160,9 @@ class ArtifactStore:
         return self._write_json("summary.json", summary)
 
     def _write_json(self, name: str, payload: Any) -> Path:
+        # Written to a temporary file and moved into place: a viewer following the run never reads half a file.
         path = self._run_dir / name
-        path.write_text(json.dumps(payload, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
+        temporary = path.with_name(path.name + ".tmp")
+        temporary.write_text(json.dumps(payload, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
+        os.replace(temporary, path)
         return path

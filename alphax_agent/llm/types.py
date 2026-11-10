@@ -62,6 +62,7 @@ class TokenUsage(BaseModel):
     calls: int = 0
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    reasoning_tokens: int = Field(default=0, description="Part of the completion tokens spent on reasoning")
     cost: float = 0.0
 
     def __add__(self, other: TokenUsage) -> TokenUsage:
@@ -69,6 +70,7 @@ class TokenUsage(BaseModel):
             calls=self.calls + other.calls,
             prompt_tokens=self.prompt_tokens + other.prompt_tokens,
             completion_tokens=self.completion_tokens + other.completion_tokens,
+            reasoning_tokens=self.reasoning_tokens + other.reasoning_tokens,
             cost=self.cost + other.cost,
         )
 
@@ -92,6 +94,9 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     content: str | None = None
+    reasoning: str | None = Field(
+        default=None, description="The model's reasoning, when the provider returns it; never sent back to the model"
+    )
     tool_calls: list[ToolCall] = Field(default_factory=list)
     usage: TokenUsage = Field(default_factory=TokenUsage)
     model: str = ""
