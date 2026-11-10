@@ -1,14 +1,14 @@
-"""Telegram and Slack notifiers for ``phasor.schedule``.
+"""Telegram and Slack notifiers for ``alphax.schedule``.
 
 Network code stays out of the library; these are examples to copy. Each is a
-callable ``(subject, text)``, as ``phasor.schedule.Job`` expects::
+callable ``(subject, text)``, as ``alphax.schedule.Job`` expects::
 
     from notifiers import Slack, Telegram
 
-    job = phasor.schedule.Job(lambda: phasor.config.run("daily.toml"),
+    job = alphax.schedule.Job(lambda: alphax.config.run("daily.toml"),
                               notify=[Telegram(os.environ["TG_TOKEN"], os.environ["TG_CHAT"]),
                                       Slack(os.environ["SLACK_WEBHOOK"])])
-    phasor.schedule.every(job, at="06:30")
+    alphax.schedule.every(job, at="06:30")
 """
 
 from __future__ import annotations

@@ -1,10 +1,10 @@
 # Push a tag such as v0.1.0 to build wheels for Linux, macOS and Windows plus an
-# sdist, publish them to PyPI as `phasor-trader` (still `import phasor`) and
+# sdist, publish them to PyPI as `alphax-trader` (still `import alphax`) and
 # attach them to a GitHub Release. Running it by hand from the Actions tab on a
 # branch builds and smoke-tests everything without publishing.
 #
-# PyPI side: a trusted publisher for project phasor-trader, owner nivalume,
-# repository phasor, workflow release.yml, environment pypi.
+# PyPI side: a trusted publisher for project alphax-trader, owner nivalume,
+# repository alphax, workflow release.yml, environment pypi.
 name: release
 
 on:
@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       # The tag, the Cargo workspace version (which maturin puts in the wheel)
-      # and `phasor.__version__` must agree, or the release stops here.
+      # and `alphax.__version__` must agree, or the release stops here.
       - name: Tag matches Cargo.toml and __version__
         if: github.ref_type == 'tag'
         shell: python
@@ -32,7 +32,7 @@ jobs:
           tag = os.environ["GITHUB_REF_NAME"].removeprefix("v")
           with open("Cargo.toml", "rb") as f:
               cargo = tomllib.load(f)["workspace"]["package"]["version"]
-          with open("crates/phasor-py/python/phasor/__init__.py", encoding="utf-8") as f:
+          with open("crates/alphax-py/python/alphax/__init__.py", encoding="utf-8") as f:
               init = re.search(r'^__version__ = "([^"]+)"', f.read(), re.M).group(1)
           print(f"tag {tag}, Cargo.toml {cargo}, __version__ {init}")
           if not tag == cargo == init:
@@ -61,7 +61,7 @@ jobs:
         with:
           target: ${{ matrix.target }}
           manylinux: ${{ matrix.manylinux }}
-          args: --release --out dist --manifest-path crates/phasor-py/Cargo.toml
+          args: --release --out dist --manifest-path crates/alphax-py/Cargo.toml
       - uses: astral-sh/setup-uv@v10.3.0
         with:
           enable-cache: false
@@ -77,17 +77,17 @@ jobs:
           import sys
 
           import numpy as np
-          import phasor
+          import alphax
 
           close = np.linspace(100.0, 120.0, 64)
           entries = np.zeros(64, dtype=bool)
           entries[4] = True
           exits = np.zeros(64, dtype=bool)
           exits[40] = True
-          pf = phasor.from_signals(close, entries, exits, init_cash=10_000)
+          pf = alphax.from_signals(close, entries, exits, init_cash=10_000)
           assert pf.total_return()[0] > 0, pf.total_return()
-          assert phasor.__version__ == importlib.metadata.version("phasor-trader")
-          print(sys.version.split()[0], phasor.__version__, pf.total_return())
+          assert alphax.__version__ == importlib.metadata.version("alphax-trader")
+          print(sys.version.split()[0], alphax.__version__, pf.total_return())
           EOF
           done
       - uses: actions/upload-artifact@v7
@@ -105,7 +105,7 @@ jobs:
       - uses: PyO3/maturin-action@v1
         with:
           command: sdist
-          args: --out dist --manifest-path crates/phasor-py/Cargo.toml
+          args: --out dist --manifest-path crates/alphax-py/Cargo.toml
       - uses: actions/upload-artifact@v7
         with:
           name: dist-sdist
@@ -119,7 +119,7 @@ jobs:
     runs-on: ubuntu-24.04
     environment:
       name: pypi
-      url: https://pypi.org/project/phasor-trader/
+      url: https://pypi.org/project/alphax-trader/
     permissions:
       id-token: write # trusted publishing, no API token
     steps:

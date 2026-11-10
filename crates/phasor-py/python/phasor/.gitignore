@@ -1,4 +1,0 @@
-# The built extension, dropped in place for an in-tree test run.
-_phasor.so
-_phasor*.pyd
-__pycache__/

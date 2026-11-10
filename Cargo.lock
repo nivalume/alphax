@@ -31,6 +31,124 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
+name = "alphax"
+version = "0.3.0"
+dependencies = [
+ "alphax-analysis",
+ "alphax-core",
+ "alphax-exec",
+ "alphax-expr",
+ "alphax-generic",
+ "alphax-indicators",
+ "alphax-model",
+ "alphax-records",
+ "alphax-signals",
+ "alphax-sim",
+]
+
+[[package]]
+name = "alphax-analysis"
+version = "0.3.0"
+dependencies = [
+ "alphax-core",
+ "alphax-generic",
+ "alphax-model",
+ "alphax-records",
+ "alphax-sim",
+]
+
+[[package]]
+name = "alphax-core"
+version = "0.3.0"
+
+[[package]]
+name = "alphax-exec"
+version = "0.3.0"
+dependencies = [
+ "alphax-core",
+ "alphax-model",
+]
+
+[[package]]
+name = "alphax-expr"
+version = "0.3.0"
+dependencies = [
+ "alphax-core",
+ "alphax-generic",
+ "alphax-model",
+ "criterion",
+ "polars",
+ "rayon",
+]
+
+[[package]]
+name = "alphax-generic"
+version = "0.3.0"
+dependencies = [
+ "alphax-core",
+]
+
+[[package]]
+name = "alphax-indicators"
+version = "0.3.0"
+dependencies = [
+ "alphax-core",
+ "alphax-generic",
+]
+
+[[package]]
+name = "alphax-model"
+version = "0.3.0"
+dependencies = [
+ "alphax-core",
+]
+
+[[package]]
+name = "alphax-py"
+version = "0.3.0"
+dependencies = [
+ "alphax-analysis",
+ "alphax-core",
+ "alphax-exec",
+ "alphax-expr",
+ "alphax-generic",
+ "alphax-indicators",
+ "alphax-model",
+ "alphax-records",
+ "alphax-signals",
+ "alphax-sim",
+ "numpy",
+ "pyo3",
+ "pyo3-build-config",
+]
+
+[[package]]
+name = "alphax-records"
+version = "0.3.0"
+dependencies = [
+ "alphax-core",
+ "alphax-exec",
+ "alphax-model",
+]
+
+[[package]]
+name = "alphax-signals"
+version = "0.3.0"
+dependencies = [
+ "alphax-core",
+]
+
+[[package]]
+name = "alphax-sim"
+version = "0.3.0"
+dependencies = [
+ "alphax-core",
+ "alphax-exec",
+ "alphax-model",
+ "alphax-records",
+]
+
+[[package]]
 name = "android_system_properties"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -721,124 +839,6 @@ name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
-
-[[package]]
-name = "phasor"
-version = "0.3.0"
-dependencies = [
- "phasor-analysis",
- "phasor-core",
- "phasor-exec",
- "phasor-expr",
- "phasor-generic",
- "phasor-indicators",
- "phasor-model",
- "phasor-records",
- "phasor-signals",
- "phasor-sim",
-]
-
-[[package]]
-name = "phasor-analysis"
-version = "0.3.0"
-dependencies = [
- "phasor-core",
- "phasor-generic",
- "phasor-model",
- "phasor-records",
- "phasor-sim",
-]
-
-[[package]]
-name = "phasor-core"
-version = "0.3.0"
-
-[[package]]
-name = "phasor-exec"
-version = "0.3.0"
-dependencies = [
- "phasor-core",
- "phasor-model",
-]
-
-[[package]]
-name = "phasor-expr"
-version = "0.3.0"
-dependencies = [
- "criterion",
- "phasor-core",
- "phasor-generic",
- "phasor-model",
- "polars",
- "rayon",
-]
-
-[[package]]
-name = "phasor-generic"
-version = "0.3.0"
-dependencies = [
- "phasor-core",
-]
-
-[[package]]
-name = "phasor-indicators"
-version = "0.3.0"
-dependencies = [
- "phasor-core",
- "phasor-generic",
-]
-
-[[package]]
-name = "phasor-model"
-version = "0.3.0"
-dependencies = [
- "phasor-core",
-]
-
-[[package]]
-name = "phasor-py"
-version = "0.3.0"
-dependencies = [
- "numpy",
- "phasor-analysis",
- "phasor-core",
- "phasor-exec",
- "phasor-expr",
- "phasor-generic",
- "phasor-indicators",
- "phasor-model",
- "phasor-records",
- "phasor-signals",
- "phasor-sim",
- "pyo3",
- "pyo3-build-config",
-]
-
-[[package]]
-name = "phasor-records"
-version = "0.3.0"
-dependencies = [
- "phasor-core",
- "phasor-exec",
- "phasor-model",
-]
-
-[[package]]
-name = "phasor-signals"
-version = "0.3.0"
-dependencies = [
- "phasor-core",
-]
-
-[[package]]
-name = "phasor-sim"
-version = "0.3.0"
-dependencies = [
- "phasor-core",
- "phasor-exec",
- "phasor-model",
- "phasor-records",
-]
 
 [[package]]
 name = "phf"

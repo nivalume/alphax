@@ -4,7 +4,7 @@ description: Draw and validate Mermaid diagrams (classDiagram, sequenceDiagram, 
 license: Apache-2.0 (the repository licence)
 compatibility: Python 3.9+ for the checker. Rendering needs Node.js with @mermaid-js/mermaid-cli and a Chromium; the checker finds Playwright, Puppeteer and system installs or accepts --chrome.
 metadata:
-  author: phasor maintainers
+  author: alphax maintainers
   version: "1.0"
   canonical-path: skills/mermaid-diagrams
 ---
@@ -26,12 +26,12 @@ current. One diagram per idea; two small diagrams beat one large one.
 
 | Reader's question | Type | Worked example in this repo |
 |---|---|---|
-| What are the types and who owns / borrows / implements what? | `classDiagram` | phasor-docs `crates/phasor-sim.md` (类图) |
-| What happens, in what order, between which parts, in one unit of work? | `sequenceDiagram` | phasor-docs `algorithms/bar-loop.md` (one bar of a shared account) |
-| Which decision leads where; what is the fixed order of stages? | `flowchart TD` | phasor-docs `algorithms/prepare-order.md` (`prepare_order`) |
-| What depends on what (crates, tasks, milestones)? | `flowchart BT` / `LR` | phasor-docs `guides/system-map.md` (crate dependencies) |
-| What states can a thing be in and what moves it? | `stateDiagram-v2` | phasor-docs `tooling/research-protocol.md` (research protocol) |
-| How long will phases take, in what order? | `gantt` | phasor-docs `guides/reading-roadmap.md` |
+| What are the types and who owns / borrows / implements what? | `classDiagram` | alphax-docs `crates/alphax-sim.md` (类图) |
+| What happens, in what order, between which parts, in one unit of work? | `sequenceDiagram` | alphax-docs `algorithms/bar-loop.md` (one bar of a shared account) |
+| Which decision leads where; what is the fixed order of stages? | `flowchart TD` | alphax-docs `algorithms/prepare-order.md` (`prepare_order`) |
+| What depends on what (crates, tasks, milestones)? | `flowchart BT` / `LR` | alphax-docs `guides/system-map.md` (crate dependencies) |
+| What states can a thing be in and what moves it? | `stateDiagram-v2` | alphax-docs `tooling/research-protocol.md` (research protocol) |
+| How long will phases take, in what order? | `gantt` | alphax-docs `guides/reading-roadmap.md` |
 
 Templates for each, with the member and arrow syntax that is known to render,
 are in [references/diagram-types.md](references/diagram-types.md).
@@ -46,7 +46,7 @@ are in [references/diagram-types.md](references/diagram-types.md).
    (`+FlexArray fees, fixed_fees, slippage…`) rather than listing all of them.
    If a class diagram needs more than ~12 classes, split by layer.
 3. **Language.** Labels follow the document's language (Chinese in
-   `*.zh-CN.md` and the phasor-docs knowledge base, English elsewhere); identifiers
+   `*.zh-CN.md` and the alphax-docs knowledge base, English elsewhere); identifiers
    stay exactly as in the code. Mixed text is fine: `"① 价格：+inf→close"`.
 4. **Style.** Use the house palette and stereotypes from
    [references/diagram-types.md](references/diagram-types.md) §Style
@@ -107,7 +107,7 @@ rejects.
 
 ## 6. Where this fits with the rest of the docs
 
-- [nivalume/phasor-docs](https://github.com/nivalume/phasor-docs) — the knowledge base, a separate repository;
+- [nivalume/alphax-docs](https://github.com/nivalume/alphax-docs) — the knowledge base, a separate repository;
   Mermaid everywhere. Its site renders the blocks with mermaid 11 in the browser;
-  check a checkout with `python3 skills/mermaid-diagrams/scripts/check_mermaid.py ../phasor-docs`.
+  check a checkout with `python3 skills/mermaid-diagrams/scripts/check_mermaid.py ../alphax-docs`.
 - The READMEs — Mermaid blocks only.

@@ -8,10 +8,10 @@ Scenario & Dimensions Covered:
   2. Custom Python `IndicatorFactory`:
      - Building a multi-input, multi-output Keltner Squeeze indicator that inherits
        automatic parameter broadcasting, column tiling, `.params()`, and `.select()`.
-  3. Live Bar-by-Bar Streaming (`phasor.indicators.Stream`):
+  3. Live Bar-by-Bar Streaming (`alphax.indicators.Stream`):
      - Stateful `O(1)` incremental updates (`"rsi"`, `"macd"`, `"atr"`, `"bbands"`)
        with bit-identical parity against vectorized batch indicators.
-  4. Multi-Window Chart Pattern Search & Pattern-Triggered Strategy (`phasor.patterns`):
+  4. Multi-Window Chart Pattern Search & Pattern-Triggered Strategy (`alphax.patterns`):
      - Searching historical price series for a W-bottom / double-bottom template via
        `patterns.search(..., rescale="minmax", overlap=False)`.
      - Turning completed pattern matches into look-ahead-free entry signals via
@@ -24,8 +24,8 @@ Run:
 from __future__ import annotations
 
 import numpy as np
-import phasor
-from phasor import indicators, patterns
+import alphax
+from alphax import indicators, patterns
 
 
 def make_ohlcv(n_bars: int = 500, n_cols: int = 2, seed: int = 7) -> dict[str, np.ndarray]:
@@ -157,9 +157,9 @@ def demo_pattern_matching_strategy(data: dict[str, np.ndarray]) -> None:
 
     # Convert pattern completions into look-ahead-free entry signals at match['end_idx']
     entries = patterns.signals(matches, close.shape)
-    exits = phasor.signals.exit_after(entries, 15)
+    exits = alphax.signals.exit_after(entries, 15)
 
-    pf = phasor.from_signals(
+    pf = alphax.from_signals(
         close,
         entries,
         exits,

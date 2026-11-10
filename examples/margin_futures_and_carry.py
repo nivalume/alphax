@@ -12,9 +12,9 @@ Scenario & Dimensions Covered:
   3. Tiered Maintenance Margin, Partial Liquidation (`liquidation_step`),
      `liquidation_fee`, and `auto_deleverage` (ADL).
   4. Non-Fill Cash Flows & Rate Conversion:
-     - `phasor.rates.per_bar`, `long_financing_rate`, `short_financing_rate`,
+     - `alphax.rates.per_bar`, `long_financing_rate`, `short_financing_rate`,
        `cash_deposits`, `cash_dividends`, `cash_earnings`.
-  5. Futures Contract Roll & Continuous Back-Adjustment (`phasor.futures`) + FX (`phasor.fx`):
+  5. Futures Contract Roll & Continuous Back-Adjustment (`alphax.futures`) + FX (`alphax.fx`):
      - Built-in CME/CBOT/NYMEX/ICE `CONTRACTS` and `spec_params("ES", initial_margin=...)`.
      - `roll_by_volume`, `roll_by_expiry`, `rolls`, and `continuous(method="difference"|"ratio")`.
      - Multipliers (`multiplier=50.0`), negative commodity prices (`allow_negative_price=True`),
@@ -28,8 +28,8 @@ Run:
 from __future__ import annotations
 
 import numpy as np
-import phasor
-from phasor import futures, fx, rates
+import alphax
+from alphax import futures, fx, rates
 
 
 def demo_cash_account_leverage_and_financing() -> None:
@@ -50,7 +50,7 @@ def demo_cash_account_leverage_and_financing() -> None:
     # - "lazy" spends $10k own cash first -> borrows $0 -> pays $0 interest
     # - "eager" borrows (1 - 1/leverage) = 50% of every buy -> borrows $5k -> pays interest
     daily_debt = rates.per_bar(0.06, index, days_per_year=365.0)
-    pf_lazy = phasor.from_signals(
+    pf_lazy = alphax.from_signals(
         close,
         entries,
         exits,
@@ -62,7 +62,7 @@ def demo_cash_account_leverage_and_financing() -> None:
         cash_maintenance_margin=0.25,
         init_cash=10_000.0,
     )
-    pf_eager = phasor.from_signals(
+    pf_eager = alphax.from_signals(
         close,
         entries,
         exits,
@@ -102,7 +102,7 @@ def demo_spot_perp_funding_carry() -> None:
     funding_matrix = np.column_stack([np.zeros(n_bars), funding_8h])
 
     # Enter carry trade when 3-bar average funding > 3 bps / 8h; exit to flat when < 1.5 bps
-    avg_funding = phasor.indicators.ma(funding_8h, window=3).ma[:, 0]
+    avg_funding = alphax.indicators.ma(funding_8h, window=3).ma[:, 0]
     size_targets = np.full((n_bars, 2), np.nan)
     for t in range(3, n_bars):
         if avg_funding[t] > 0.0003:
@@ -110,7 +110,7 @@ def demo_spot_perp_funding_carry() -> None:
         elif avg_funding[t] < 0.00015:
             size_targets[t] = [0.0, 0.0]   # flatten both legs
 
-    pf = phasor.from_orders(
+    pf = alphax.from_orders(
         close,
         size=size_targets,
         size_type="targetamount",
@@ -152,7 +152,7 @@ def demo_tiered_margin_liquidation_and_adl() -> None:
     adl = np.zeros(40, dtype=bool)
     adl[35] = True  # Exchange auto-deleverages any remaining open position at bar 35
 
-    pf = phasor.from_orders(
+    pf = alphax.from_orders(
         close,
         size=size,
         account_type="margin",
@@ -173,7 +173,7 @@ def demo_tiered_margin_liquidation_and_adl() -> None:
 
 
 def demo_continuous_futures_and_fx() -> None:
-    print("\n=== 4. Futures Contract Roll (`phasor.futures`), Multipliers, Cash Flows & FX (`phasor.fx`) ===")
+    print("\n=== 4. Futures Contract Roll (`alphax.futures`), Multipliers, Cash Flows & FX (`alphax.fx`) ===")
     n_bars = 100
     t = np.linspace(0.0, 1.0, n_bars)
     # 3 quarterly contracts (Front, Next, Far) trading in contango ($12.50 carry between expiries)
@@ -199,12 +199,12 @@ def demo_continuous_futures_and_fx() -> None:
 
     # Simulate E-mini S&P 500 (ES) using built-in contract specs (multiplier=50, size_granularity=1.0)
     es_kwargs = futures.spec_params(["ES"])
-    fast = phasor.indicators.ma(cont_diff, 8).ma
-    slow = phasor.indicators.ma(cont_diff, 20).ma
-    pf_es = phasor.from_signals(
+    fast = alphax.indicators.ma(cont_diff, 8).ma
+    slow = alphax.indicators.ma(cont_diff, 20).ma
+    pf_es = alphax.from_signals(
         cont_diff,
-        phasor.crossed_above(fast, slow),
-        phasor.crossed_above(slow, fast),
+        alphax.crossed_above(fast, slow),
+        alphax.crossed_above(slow, fast),
         size=1.0,
         account_type="margin",
         initial_margin=15_000.0,

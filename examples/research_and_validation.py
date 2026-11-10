@@ -1,26 +1,26 @@
 """Event Studies, ML Triple-Barrier Labeling, Walk-Forward CV & Anti-Overfitting.
 
 Scenario & Dimensions Covered:
-  1. Synthetic Market Generation (`phasor.synthetic`) & Null-Hypothesis Random Signals:
+  1. Synthetic Market Generation (`alphax.synthetic`) & Null-Hypothesis Random Signals:
      - `synthetic.gbm`, `synthetic.random_walk`, `synthetic.ohlc_from_close`.
      - `signals.random_n`, `signals.random_by_prob`, `signals.random_entries_exits`,
        `signals.random_like`.
-  2. Event Study Forward Price Paths (`phasor.events.forward_paths`):
+  2. Event Study Forward Price Paths (`alphax.events.forward_paths`):
      - Analyzing post-event drift (`mean_path()`, `median_path()`, `hit_rate(offset)`, `paths`)
        around RSI oversold crossbars before committing to a strategy rule.
-  3. ML Labeling (`phasor.labels`) & Prediction Evaluation (`phasor.predictions`):
+  3. ML Labeling (`alphax.labels`) & Prediction Evaluation (`alphax.predictions`):
      - `labels.triple_barrier`, `labels.fixed_horizon_returns`, `labels.trend_labels`,
        `labels.pivot_labels`, `labels.mean_labels`.
      - Evaluating directional classifiers against `"hold"` and `"random"` baselines via
        `predictions.backtest` and `predictions.compare`.
-  4. Constrained Grid & Random Search (`phasor.params`):
+  4. Constrained Grid & Random Search (`alphax.params`):
      - `params.grid(where=...)`, `params.random` (`IntUniform`, `Uniform`, `LogUniform`,
        `Choice`), parallel `params.run(n_jobs=2)`, and `params.neighbors` plateau checks.
-  5. Cross-Validation Splitters & Statistical Hypothesis Tests (`phasor.validation`):
+  5. Cross-Validation Splitters & Statistical Hypothesis Tests (`alphax.validation`):
      - `rolling`, `expanding`, `purged_kfold` (with purge & embargo), `calendar`,
        `from_ranges`, `from_masks`, and `walk_forward`.
      - `permutation_test`, `shuffled_prices`, `shuffled_test`, and `signal_delay_test`.
-  6. Multiple-Testing & Selection-Bias Corrections (`phasor.robust`):
+  6. Multiple-Testing & Selection-Bias Corrections (`alphax.robust`):
      - `probabilistic_sharpe` (PSR), `expected_max_sharpe`, `deflated_sharpe` (DSR),
        and `pbo_cscv` (Probability of Backtest Overfitting via CSCV).
 
@@ -31,12 +31,12 @@ Run:
 from __future__ import annotations
 
 import numpy as np
-import phasor
-from phasor import events, labels, params, predictions, robust, signals, synthetic, validation
+import alphax
+from alphax import events, labels, params, predictions, robust, signals, synthetic, validation
 
 
 def demo_synthetic_and_event_study() -> dict[str, np.ndarray]:
-    print("=== 1. Synthetic OHLCV (`phasor.synthetic`) & Event Study (`phasor.events`) ===")
+    print("=== 1. Synthetic OHLCV (`alphax.synthetic`) & Event Study (`alphax.events`) ===")
     close = synthetic.gbm((600, 3), start=100.0, mu=0.08, sigma=0.22, seed=42)
     rw = synthetic.random_walk((600, 1), start=100.0, step_std=0.8, seed=42)
     open_, high, low = synthetic.ohlc_from_close(close, spread=0.008, seed=42)
@@ -44,9 +44,9 @@ def demo_synthetic_and_event_study() -> dict[str, np.ndarray]:
 
     # Event: 14-bar RSI crosses below 35 (oversold)
     # Note: `crossed_below(a, b)` is expressed via `crossed_above(b, a)`
-    rsi = phasor.indicators.rsi(close, window=14).rsi
+    rsi = alphax.indicators.rsi(close, window=14).rsi
     th35 = np.full_like(rsi, 35.0)
-    oversold_event = phasor.crossed_above(th35, rsi)
+    oversold_event = alphax.crossed_above(th35, rsi)
 
     study = events.forward_paths(close, oversold_event, before=3, after=15)
     # Null-hypothesis random signals preserving exact signal counts per column
@@ -68,7 +68,7 @@ def demo_synthetic_and_event_study() -> dict[str, np.ndarray]:
 
 
 def demo_ml_labeling_and_predictions(ohlc: dict[str, np.ndarray]) -> None:
-    print("\n=== 2. ML Labeling (`phasor.labels`) & Classifier Backtest (`phasor.predictions`) ===")
+    print("\n=== 2. ML Labeling (`alphax.labels`) & Classifier Backtest (`alphax.predictions`) ===")
     close = ohlc["close"][:, 0]
 
     tb_label, tb_decided = labels.triple_barrier(close, up=0.025, down=0.02, max_hold=12)
@@ -112,7 +112,7 @@ def demo_ml_labeling_and_predictions(ohlc: dict[str, np.ndarray]) -> None:
 
 
 def demo_param_search_and_plateau(ohlc: dict[str, np.ndarray]) -> np.ndarray:
-    print("\n=== 3. Parameter Grid/Random Search & Plateau Stability (`phasor.params`) ===")
+    print("\n=== 3. Parameter Grid/Random Search & Plateau Stability (`alphax.params`) ===")
     close = ohlc["close"][:, 0]
 
     grid_space = params.grid(
@@ -132,12 +132,12 @@ def demo_param_search_and_plateau(ohlc: dict[str, np.ndarray]) -> np.ndarray:
     )
 
     def eval_ma(*, fast: int, slow: int) -> dict[str, float]:
-        f = phasor.indicators.ma(close, fast).ma
-        s = phasor.indicators.ma(close, slow).ma
-        pf = phasor.from_signals(
+        f = alphax.indicators.ma(close, fast).ma
+        s = alphax.indicators.ma(close, slow).ma
+        pf = alphax.from_signals(
             close,
-            phasor.crossed_above(f, s),
-            phasor.crossed_above(s, f),
+            alphax.crossed_above(f, s),
+            alphax.crossed_above(s, f),
             init_cash=10_000.0,
             fees=0.0005,
         )
@@ -159,12 +159,12 @@ def demo_param_search_and_plateau(ohlc: dict[str, np.ndarray]) -> np.ndarray:
     # Collect per-bar returns across all grid trials for CSCV / DSR analysis
     trial_returns = []
     for p in grid_space:
-        f = phasor.indicators.ma(close, p["fast"]).ma
-        s = phasor.indicators.ma(close, p["slow"]).ma
-        pf = phasor.from_signals(
+        f = alphax.indicators.ma(close, p["fast"]).ma
+        s = alphax.indicators.ma(close, p["slow"]).ma
+        pf = alphax.from_signals(
             close,
-            phasor.crossed_above(f, s),
-            phasor.crossed_above(s, f),
+            alphax.crossed_above(f, s),
+            alphax.crossed_above(s, f),
             init_cash=10_000.0,
             fees=0.0005,
         )
@@ -173,7 +173,7 @@ def demo_param_search_and_plateau(ohlc: dict[str, np.ndarray]) -> np.ndarray:
 
 
 def demo_validation_and_overfitting_tests(ohlc: dict[str, np.ndarray], returns_matrix: np.ndarray) -> None:
-    print("\n=== 4. Walk-Forward CV (`phasor.validation`) & Deflated Sharpe / PBO (`phasor.robust`) ===")
+    print("\n=== 4. Walk-Forward CV (`alphax.validation`) & Deflated Sharpe / PBO (`alphax.robust`) ===")
     close = ohlc["close"][:, 0]
     n_bars = len(close)
     index = np.arange(
@@ -198,20 +198,20 @@ def demo_validation_and_overfitting_tests(ohlc: dict[str, np.ndarray], returns_m
         c = close[rows]
         out: dict[tuple[int, int], float] = {}
         for f_w, s_w in combos:
-            f = phasor.indicators.ma(c, f_w).ma
-            s = phasor.indicators.ma(c, s_w).ma
-            pf = phasor.from_signals(c, phasor.crossed_above(f, s), phasor.crossed_above(s, f), init_cash=10_000.0)
+            f = alphax.indicators.ma(c, f_w).ma
+            s = alphax.indicators.ma(c, s_w).ma
+            pf = alphax.from_signals(c, alphax.crossed_above(f, s), alphax.crossed_above(s, f), init_cash=10_000.0)
             out[(f_w, s_w)] = float(pf.total_return()[0])
         return out
 
     wf = validation.walk_forward(score_grid, n_bars, roll_splits)
 
     # Signal permutation, shuffled prices, and execution delay degradation tests
-    @phasor.strategy
+    @alphax.strategy
     def ma_cross(data: dict[str, np.ndarray], fast: int = 10, slow: int = 30):
-        f = phasor.indicators.ma(data["close"], fast).ma
-        s = phasor.indicators.ma(data["close"], slow).ma
-        return phasor.crossed_above(f, s), phasor.crossed_above(s, f)
+        f = alphax.indicators.ma(data["close"], fast).ma
+        s = alphax.indicators.ma(data["close"], slow).ma
+        return alphax.crossed_above(f, s), alphax.crossed_above(s, f)
 
     pf_base = ma_cross.run({"close": close}, params={"fast": 10, "slow": 30}, init_cash=10_000.0)
     asset_rets = np.r_[0.0, np.diff(close) / close[:-1]]

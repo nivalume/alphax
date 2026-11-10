@@ -22,7 +22,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import numpy as np
-import phasor
+import alphax
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.csv as csv
@@ -46,7 +46,7 @@ def bars_schema():
             names=["event_time", "available_time", *OHLCV],
         )
 
-    return phasor.data.DataSchema(
+    return alphax.data.DataSchema(
         name="bars",
         input=pa.schema([("open_time_ms", pa.int64()), ("close_time_ms", pa.int64()), *traded]),
         output=pa.schema([("event_time", pa.uint64()), ("available_time", pa.uint64()), *traded]),
@@ -56,7 +56,7 @@ def bars_schema():
 
 def funding_schema():
     """A funding rate is knowable at the moment it is charged."""
-    return phasor.data.DataSchema(
+    return alphax.data.DataSchema(
         name="funding",
         input=pa.schema([("ts_event", pa.int64()), ("funding_rate", pa.float64()), ("mark_price", pa.float64())]),
         output=pa.schema([("event_time", pa.uint64()), ("available_time", pa.uint64()), ("funding_rate", pa.float64())]),
@@ -73,7 +73,7 @@ def sentiment_schema():
     `headline` stays in `output` so it survives in `Dataset.batches`; `prepare`
     and the aligned views ignore every field they were not asked for.
     """
-    return phasor.data.DataSchema(
+    return alphax.data.DataSchema(
         name="sentiment",
         input=pa.schema([("ts_event", pa.int64()), ("headline", pa.string()), ("score", pa.float64())]),
         output=pa.schema([("event_time", pa.uint64()), ("available_time", pa.uint64()),
@@ -139,10 +139,10 @@ def run(root):
     # 1. One path, three granularities, one panel. A key names the instrument:
     #    bars use a BarType, and the panel's columns follow the key order.
     keys = BAR_TYPES
-    directory = phasor.data.load(root / "data" / "bars", bars_schema(), keys).prepare()
-    one_key = phasor.data.load(root / "data" / "bars" / keys[0], bars_schema()).prepare()
+    directory = alphax.data.load(root / "data" / "bars", bars_schema(), keys).prepare()
+    one_key = alphax.data.load(root / "data" / "bars" / keys[0], bars_schema()).prepare()
     first_file = sorted((root / "data" / "bars" / keys[0]).iterdir())[0]
-    first = phasor.data.load(first_file, bars_schema(), keys[0])
+    first = alphax.data.load(first_file, bars_schema(), keys[0])
     one_file = first.prepare()
     print("panel", directory.shape, [str(one) for one in directory.instruments])
     print("one instrument", one_key.shape, "| its first file", one_file.shape)
@@ -153,15 +153,15 @@ def run(root):
 
     # 2. A range is half open on the decoded availability column, never on a file
     #    name. A Source keeps the resolved files for another read.
-    source = phasor.data.Source(root / "data" / "bars", bars_schema(), keys)
+    source = alphax.data.Source(root / "data" / "bars", bars_schema(), keys)
     march = source.prepare(start="2026-03-01", end="2026-04-01")
     before = source.prepare(start=int(directory.time[0]), end=int(march.time[0]))
     print("2026-03:", march.n_rows, "rows | before it:", before.n_rows, "rows | coverage",
           directory.coverage().round(3))
 
     # 3. Auxiliary series: keyed by instrument, or one series for every column.
-    funding = phasor.data.load(root / "data" / "funding", funding_schema(), SYMBOLS)
-    news = phasor.data.load(root / "data" / "sentiment" / "global.csv", sentiment_schema(), "market")
+    funding = alphax.data.load(root / "data" / "funding", funding_schema(), SYMBOLS)
+    news = alphax.data.load(root / "data" / "sentiment" / "global.csv", sentiment_schema(), "market")
     fields = {
         "close": directory.close,
         "funding_rate": funding.asof(directory, field="funding_rate"),
@@ -190,7 +190,7 @@ def main():
     parser.add_argument("--dir", type=Path, help="An existing catalog in the layout above; never written")
     args = parser.parse_args()
     if args.dir is None:
-        with TemporaryDirectory(prefix="phasor-data-") as temporary:
+        with TemporaryDirectory(prefix="alphax-data-") as temporary:
             root = Path(temporary)
             write_samples(root)
             panel = run(root)
@@ -204,7 +204,7 @@ def main():
     exits = np.zeros(close.shape, dtype=bool)
     entries[1:] = (fast[1:] > slow[1:]) & (fast[:-1] <= slow[:-1])
     exits[1:] = (fast[1:] < slow[1:]) & (fast[:-1] >= slow[:-1])
-    portfolio = phasor.from_signals(close, entries, exits, init_cash=10_000.0, fees=0.001, slippage=0.0005)
+    portfolio = alphax.from_signals(close, entries, exits, init_cash=10_000.0, fees=0.001, slippage=0.0005)
     print("engine:", portfolio.trade_count().tolist(), "trades, returns", portfolio.total_return().round(4).tolist())
 
 

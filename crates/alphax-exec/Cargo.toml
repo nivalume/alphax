@@ -1,0 +1,15 @@
+[package]
+name = "alphax-exec"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Order execution kernel"
+
+[lints]
+workspace = true
+
+[dependencies]
+alphax-core = { workspace = true }
+alphax-model = { workspace = true }

@@ -28,7 +28,7 @@ Run:
 from __future__ import annotations
 
 import numpy as np
-import phasor
+import alphax
 
 
 def demo_order_func_lifecycle_and_circuit_breaker() -> None:
@@ -36,8 +36,8 @@ def demo_order_func_lifecycle_and_circuit_breaker() -> None:
     rng = np.random.default_rng(12)
     n_bars = 180
     close = 100.0 * np.exp(np.cumsum(rng.normal(0.0003, 0.016, size=(n_bars, 1)), axis=0))
-    fast = phasor.indicators.ma(close, 6).ma
-    slow = phasor.indicators.ma(close, 18).ma
+    fast = alphax.indicators.ma(close, 6).ma
+    slow = alphax.indicators.ma(close, 18).ma
 
     def pre_group(group: int, from_col: int, to_col: int) -> dict:
         _ = (group, from_col, to_col)
@@ -49,12 +49,12 @@ def demo_order_func_lifecycle_and_circuit_breaker() -> None:
             "fills_logged": 0,
         }
 
-    def pre_segment(ctx: phasor.Context, state: dict) -> str | None:
+    def pre_segment(ctx: alphax.Context, state: dict) -> str | None:
         if ctx.row < 18:
             return "skip"  # skip indicator warm-up bars
         return None
 
-    def order_cb(ctx: phasor.Context, k: int, state: dict) -> dict | float | None:
+    def order_cb(ctx: alphax.Context, k: int, state: dict) -> dict | float | None:
         i = ctx.row
         pos = ctx.position[k]
         price = close[i, k]
@@ -67,7 +67,7 @@ def demo_order_func_lifecycle_and_circuit_breaker() -> None:
             return {"size": 0.0, "size_type": "targetamount"}
         return None
 
-    def post_order(ctx: phasor.Context, k: int, result: dict, state: dict) -> None:
+    def post_order(ctx: alphax.Context, k: int, result: dict, state: dict) -> None:
         _ = (ctx, k)
         if not result["filled"]:
             return
@@ -81,7 +81,7 @@ def demo_order_func_lifecycle_and_circuit_breaker() -> None:
                 state["win_streak"] = 0
             state["entry_price"] = np.nan
 
-    def post_segment(ctx: phasor.Context, state: dict) -> str | None:
+    def post_segment(ctx: alphax.Context, state: dict) -> str | None:
         val = ctx.value
         state["peak_value"] = max(state["peak_value"], val)
         dd = (state["peak_value"] - val) / state["peak_value"]
@@ -90,7 +90,7 @@ def demo_order_func_lifecycle_and_circuit_breaker() -> None:
             return "stop"
         return None
 
-    pf = phasor.from_order_func(
+    pf = alphax.from_order_func(
         close,
         order_cb,
         pre_group_func=pre_group,
@@ -118,13 +118,13 @@ def demo_flexible_multi_leg_pairs_trading() -> None:
     close = np.column_stack([asset_a, asset_b])
 
     log_spread = np.log(asset_a / asset_b)
-    spread_ma = phasor.indicators.ma(log_spread, 20).ma[:, 0]
-    spread_std = phasor.indicators.mstd(log_spread, 20).mstd[:, 0]
+    spread_ma = alphax.indicators.ma(log_spread, 20).ma[:, 0]
+    spread_std = alphax.indicators.mstd(log_spread, 20).mstd[:, 0]
     zscore = (log_spread - spread_ma) / np.where(spread_std > 0, spread_std, np.nan)
 
     # With `flexible=True`, `order_func(ctx, call, state)` is called for `call = 0, 1, ...` on each bar
     # until it returns `None`.
-    def pairs_order_func(ctx: phasor.Context, call: int, state: None) -> tuple[int, dict] | None:
+    def pairs_order_func(ctx: alphax.Context, call: int, state: None) -> tuple[int, dict] | None:
         _ = state
         if call >= 2:
             return None
@@ -148,7 +148,7 @@ def demo_flexible_multi_leg_pairs_trading() -> None:
             return (call, {"size": 0.0, "size_type": "targetamount", "direction": "both"})
         return None
 
-    pf = phasor.from_order_func(
+    pf = alphax.from_order_func(
         close,
         pairs_order_func,
         flexible=True,
@@ -171,7 +171,7 @@ def demo_from_signals_callbacks() -> None:
     high = close * 1.008
     low = close * 0.992
 
-    def custom_signal_func(ctx: phasor.Context, k: int, state: None) -> tuple[bool, bool, bool, bool]:
+    def custom_signal_func(ctx: alphax.Context, k: int, state: None) -> tuple[bool, bool, bool, bool]:
         _ = state
         i = ctx.row
         pos = ctx.position[k]
@@ -179,7 +179,7 @@ def demo_from_signals_callbacks() -> None:
         long_en = (pos == 0.0) and (i > 5) and bool(close[i, 0] > close[i - 1, 0] > close[i - 2, 0])
         return long_en, False, False, False
 
-    def dynamic_ratchet_adjust(ctx: phasor.Context, k: int, stops: dict, state: None) -> dict | None:
+    def dynamic_ratchet_adjust(ctx: alphax.Context, k: int, stops: dict, state: None) -> dict | None:
         _ = state
         pos = ctx.position[k]
         if pos <= 0.0:
@@ -194,7 +194,7 @@ def demo_from_signals_callbacks() -> None:
             return {"sl_stop": 0.04, "sl_trail": False, "tp_stop": 0.12}
         return None
 
-    pf = phasor.from_signals(
+    pf = alphax.from_signals(
         close,
         high=high,
         low=low,

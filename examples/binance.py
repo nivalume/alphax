@@ -1,8 +1,8 @@
-"""Example-only Binance download and CSV cache writer; never imported by phasor."""
+"""Example-only Binance download and CSV cache writer; never imported by alphax."""
 
 from __future__ import annotations
 
-from phasor import InstrumentId
+from alphax import InstrumentId
 
 import csv
 import json

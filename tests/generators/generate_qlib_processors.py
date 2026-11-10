@@ -1,4 +1,4 @@
-"""Generate the Qlib oracle for ``phasor.processors``.
+"""Generate the Qlib oracle for ``alphax.processors``.
 
 Runs Qlib's own data processors (``qlib.data.dataset.processor``) over a
 deterministic panel in Qlib's layout: rows ``(datetime, instrument)``,

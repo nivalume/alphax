@@ -1,0 +1,19 @@
+[package]
+name = "alphax-analysis"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Return metrics, drawdowns and the stats registry for alphax"
+
+[lints]
+workspace = true
+
+[dependencies]
+alphax-core = { workspace = true }
+alphax-generic = { workspace = true }
+alphax-model = { workspace = true }
+alphax-records = { workspace = true }
+alphax-sim = { workspace = true }
+

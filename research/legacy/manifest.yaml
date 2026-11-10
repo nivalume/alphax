@@ -1,11 +1,11 @@
-# Tests that looked at the same bars before the ledger existed. Imported by `phasor-lab import-legacy`.
+# Tests that looked at the same bars before the ledger existed. Imported by `alphax-lab import-legacy`.
 # Counted per hypothesis (the grid combinations each one searched are kept as metadata). Results were
 # not read when compiling this list; only counts and the factor expressions (for de-duplication).
 #
 # In-sample: everything below ran on 2021-01..2025-01 (the ledger's in-sample window).
 # Out-of-sample: runs that read the 2025-01..2026-09 period (RD-Agent "final" / --finalize).
 entries:
-  - source: rdagent phasor_factor session log/2026-09-22_14-31-40-615120
+  - source: rdagent alphax_factor session log/2026-09-22_14-31-40-615120
     tests: 3
     oos_tests: 0
     combos: 24
@@ -13,7 +13,7 @@ entries:
       trend_ma_gap_norm: "Div(Sub(Mean($close,96),Mean($close,720)),Std($close,720))"
       trend_slope_norm: "Div(Slope($close,720),Std(Delta($close,1),720))"
       trend_signed_efficiency: "Div(Sum(Delta($close,1),720),Sum(Abs(Delta($close,1)),720))"
-  - source: rdagent phasor_factor session log/2026-09-22_14-46-18-206124
+  - source: rdagent alphax_factor session log/2026-09-22_14-46-18-206124
     tests: 6
     oos_tests: 0
     combos: 78
@@ -25,24 +25,24 @@ entries:
       long_range_position: "($close - Min($low,8760)) / (Max($high,8760) - Min($low,8760) + 0.0000001) - 0.5"
       trend_efficiency: "Sum(Delta($close,1),720)/(Sum(Abs(Delta($close,1)),720)+0.000000001)"
     note: 3 loops, 2 specs each
-  - source: rdagent phasor_strategy session log/2026-09-21_06-53-43-957811
+  - source: rdagent alphax_strategy session log/2026-09-21_06-53-43-957811
     tests: 5
     oos_tests: 0
     combos: 20
     hypotheses: [inverse-vol risk parity, no-trade band, per-asset band, weekly refresh, vol-scaled momentum]
-  - source: rdagent phasor_strategy workspaces git_ignore_folder/RD-Agent_workspace (2026-09-20)
+  - source: rdagent alphax_strategy workspaces git_ignore_folder/RD-Agent_workspace (2026-09-20)
     tests: 4
     oos_tests: 2
     combos: 8
     note: 4 in-sample runs; 2 final runs (4 parameter sets) read the test period
-  - source: manual harness runs during phasor_factor development
+  - source: manual harness runs during alphax_factor development
     tests: 2
     oos_tests: 0
     combos: 48
     structures:
       ma_gap: "Mean($close,{fast})/Mean($close,{slow})-1"
       rev_z: "$close/Ref($close,{n})-1"
-  - source: phasor_factor test suite (real BTCUSDT bars)
+  - source: alphax_factor test suite (real BTCUSDT bars)
     tests: 2
     oos_tests: 3
     combos: 26

@@ -18,7 +18,7 @@ from __future__ import annotations
 import sys
 import time
 
-import phasor
+import alphax
 import numpy as np
 
 N_ROWS = int(sys.argv[1]) if len(sys.argv) > 1 else 2000
@@ -41,12 +41,12 @@ def report(name, secs):
     print(f"{name:<44} {secs * 1e3:>9.1f} ms")
 
 
-@phasor.strategy
+@alphax.strategy
 def ma_cross(data, fast=5, slow=20):
-    values = phasor.factors(data, fast=f"Mean($close, {fast})", slow=f"Mean($close, {slow})")
+    values = alphax.factors(data, fast=f"Mean($close, {fast})", slow=f"Mean($close, {slow})")
     return (
-        phasor.crossed_above(values["fast"], values["slow"]),
-        phasor.crossed_above(values["slow"], values["fast"]),
+        alphax.crossed_above(values["fast"], values["slow"]),
+        alphax.crossed_above(values["slow"], values["fast"]),
     )
 
 
@@ -59,23 +59,23 @@ def main() -> None:
     n_cols = N_SYMBOLS * N_PARAMS
     print(f"panel {N_ROWS} x {N_SYMBOLS}, {N_PARAMS} parameter sets -> {n_cols} columns, {THREADS} threads\n")
 
-    secs, factors = best_of(5, lambda: phasor.factors(data, fast="Mean($close, 5)", slow="Mean($close, 20)"))
+    secs, factors = best_of(5, lambda: alphax.factors(data, fast="Mean($close, 5)", slow="Mean($close, 20)"))
     report("factors (2 x Mean)", secs)
-    secs, crossed = best_of(5, lambda: phasor.crossed_above(factors["fast"], factors["slow"]))
+    secs, crossed = best_of(5, lambda: alphax.crossed_above(factors["fast"], factors["slow"]))
     report("crossed_above", secs)
 
     secs, pf = best_of(5, lambda: ma_cross.sweep(data, params=params, fees=0.001, threads=THREADS))
     report(f"strategy.sweep ({N_PARAMS} params, C-order close)", secs)
 
     entries = np.asfortranarray(np.tile(crossed, (1, N_PARAMS)))
-    exits = np.asfortranarray(np.tile(phasor.crossed_above(factors["slow"], factors["fast"]), (1, N_PARAMS)))
+    exits = np.asfortranarray(np.tile(alphax.crossed_above(factors["slow"], factors["fast"]), (1, N_PARAMS)))
     column_map = np.tile(np.arange(N_SYMBOLS), N_PARAMS)
     secs, _ = best_of(
-        5, lambda: phasor.from_signals(close_f, entries, exits, column_map=column_map, fees=0.001, threads=THREADS)
+        5, lambda: alphax.from_signals(close_f, entries, exits, column_map=column_map, fees=0.001, threads=THREADS)
     )
     report("from_signals (F-order, column_map)", secs)
     secs, _ = best_of(
-        5, lambda: phasor.from_signals(close_f, entries, exits, column_map=column_map, fees=0.001, threads=1)
+        5, lambda: alphax.from_signals(close_f, entries, exits, column_map=column_map, fees=0.001, threads=1)
     )
     report("from_signals (1 thread)", secs)
 

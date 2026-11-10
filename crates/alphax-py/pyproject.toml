@@ -1,0 +1,36 @@
+[build-system]
+requires = ["maturin>=1.9.4,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "alphax-trader"
+description = "A vectorized backtesting engine, in Rust"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.9"
+dependencies = ["numpy>=1.22"]
+classifiers = [
+  "Programming Language :: Rust",
+  "Programming Language :: Python :: Implementation :: CPython",
+]
+dynamic = ["version"]
+
+[project.urls]
+Repository = "https://github.com/nivalume/alphax"
+Documentation = "https://alphax-docs.vercel.app"
+
+[project.scripts]
+alphax = "alphax.cli:main"
+
+[project.optional-dependencies]
+data = ["pyarrow>=15"]
+plot = ["plotly>=5"]
+pandas = ["pandas>=1.5"]
+config = ["tomli>=2; python_version < '3.11'"]
+test = ["pytest>=7"]
+
+[tool.maturin]
+# The Rust extension is built as `alphax._alphax` and the Python shell in
+# `python/alphax/` is packaged around it. One wheel, two layers.
+module-name = "alphax._alphax"
+python-source = "python"

@@ -8,9 +8,9 @@
 |---|---|
 | [`docs-canvas/`](docs-canvas/SKILL.md) | 把架构说明、API 参考、walkthrough 等文档做成可导航的 Cursor Canvas（依赖 Cursor Canvas SDK） |
 | [`mermaid-diagrams/`](mermaid-diagrams/SKILL.md) | 在 Markdown 里画类图 / 时序图 / 流程图 / 状态图 / 路线图，并用 mermaid-cli 逐块渲染校验 |
-| [`phasor-strategy/`](phasor-strategy/SKILL.md) | 用 phasor 的 Python API 写策略、扫参数、检验结果是否成立 |
-| [`phasor-feature/`](phasor-feature/SKILL.md) | 给引擎加功能：代码放哪里、必须守住的约束、测试和检查的顺序、收尾 |
-| [`phasor-testing/`](phasor-testing/SKILL.md) | 黄金 fixture 测试：重放 fixture、判断失败原因、加覆盖、没有 fixture 时的性质和变异测试 |
+| [`alphax-strategy/`](alphax-strategy/SKILL.md) | 用 alphax 的 Python API 写策略、扫参数、检验结果是否成立 |
+| [`alphax-feature/`](alphax-feature/SKILL.md) | 给引擎加功能：代码放哪里、必须守住的约束、测试和检查的顺序、收尾 |
+| [`alphax-testing/`](alphax-testing/SKILL.md) | 黄金 fixture 测试：重放 fixture、判断失败原因、加覆盖、没有 fixture 时的性质和变异测试 |
 
 ## 各工具怎么发现这些技能
 

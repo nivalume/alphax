@@ -1,4 +1,4 @@
-# phasor
+# alphax
 
 A parallel, factor-driven vectorized backtesting engine in Rust.
 
@@ -60,7 +60,7 @@ Factor expressions  →  factor panel (time × symbol)
 Parameters and symbols share a flat column axis. Columns are independent by
 default; cash-sharing groups combine symbols into portfolios, with parameter
 groups simulated in parallel. Python supports both orders and signals with
-account-level results; see [shared accounts](crates/phasor-py/README.md#shared-accounts).
+account-level results; see [shared accounts](crates/alphax-py/README.md#shared-accounts).
 
 The analysis layer consumes records, not simulation state. Anything that
 changes cash or a position is a record, and balances, value, returns and
@@ -69,7 +69,7 @@ records it came from.
 
 For a guided path through the source itself (reading order per crate, the core algorithm of each
 module, class and sequence diagrams, exercises and further reading), see the
-[source knowledge base](https://phasor-docs.vercel.app) (中文), kept in [nivalume/phasor-docs](https://github.com/nivalume/phasor-docs). It is plain
+[source knowledge base](https://alphax-docs.vercel.app) (中文), kept in [nivalume/alphax-docs](https://github.com/nivalume/alphax-docs). It is plain
 Markdown that reads on GitHub; the site adds search and a graph of how the pages relate.
 
 ## What is in it
@@ -105,17 +105,17 @@ over in batches.
 ## Install
 
 ```bash
-pip install phasor-trader            # extras: [data], [plot], [pandas]
+pip install alphax-trader            # extras: [data], [plot], [pandas]
 ```
 
-The PyPI project is `phasor-trader`; the module is still `import phasor`.
+The PyPI project is `alphax-trader`; the module is still `import alphax`.
 Wheels cover Linux (x86_64, aarch64), macOS (x86_64, arm64) and Windows
 (x86_64), CPython 3.9 and later.
 
 ## Try it
 
 ```bash
-python -m pip install -e crates/phasor-py
+python -m pip install -e crates/alphax-py
 python examples/sweep.py
 ```
 
@@ -140,17 +140,17 @@ cash plus the symbols' market value. Prices are synthetic; no downloads needed.
 For Bars + funding + news from a catalog or standalone files:
 
 ```bash
-python -m pip install -e 'crates/phasor-py[data]'
+python -m pip install -e 'crates/alphax-py[data]'
 python examples/local_data.py                   # the data layer on its own, offline
 python examples/multi_data.py --source catalog  # also parquet / csv
 python examples/crypto.py --demo
-# Full USD-M history from Binance Vision (writes ~/.cache/phasor/catalog):
+# Full USD-M history from Binance Vision (writes ~/.cache/alphax/catalog):
 python examples/download_binance_vision.py
 ```
 
 The offline data example uses two complete `symbol.venue` identities and four
 parameter pairs. Prices stay `[T,2]`; signals are `[T,8]`, with `column_map`
-sharing prices across parameters. See the [data API](crates/phasor-py/README.md#local-data-and-parameter-sweeps).
+sharing prices across parameters. See the [data API](crates/alphax-py/README.md#local-data-and-parameter-sweeps).
 
 ## Developing
 
@@ -158,17 +158,17 @@ sharing prices across parameters. See the [data API](crates/phasor-py/README.md#
 cargo test
 cargo clippy --all-targets -- -D warnings
 cargo fmt --check
-pytest crates/phasor-py/tests -q
+pytest crates/alphax-py/tests -q
 ```
 
-Local CSV/Parquet reading and alignment live in Python (`phasor.data`), on
+Local CSV/Parquet reading and alignment live in Python (`alphax.data`), on
 pyarrow and NumPy. User Schemas name the columns and decode each Arrow batch
 before simulation; the Rust compute crates stay independent of file I/O.
 Binance HTTP and cache writing live only in examples. Parallel account
 execution uses `std::thread::scope`.
 
 To release, set `version` in `Cargo.toml` (`[workspace.package]`) and
-`__version__` in `crates/phasor-py/python/phasor/__init__.py`, commit, and
+`__version__` in `crates/alphax-py/python/alphax/__init__.py`, commit, and
 push a matching tag (`git tag v0.1.0 && git push origin v0.1.0`).
 [`release.yml`](.github/workflows/release.yml) builds the wheels and sdist,
 publishes them to PyPI and creates the GitHub Release.

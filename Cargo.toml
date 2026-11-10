@@ -1,18 +1,18 @@
 [workspace]
 resolver = "3"
 members = [
-  "crates/phasor",
-  "crates/phasor-core",
-  "crates/phasor-model",
-  "crates/phasor-exec",
-  "crates/phasor-generic",
-  "crates/phasor-indicators",
-  "crates/phasor-sim",
-  "crates/phasor-py",
-  "crates/phasor-records",
-  "crates/phasor-signals",
-  "crates/phasor-analysis",
-  "crates/phasor-expr",
+  "crates/alphax",
+  "crates/alphax-core",
+  "crates/alphax-model",
+  "crates/alphax-exec",
+  "crates/alphax-generic",
+  "crates/alphax-indicators",
+  "crates/alphax-sim",
+  "crates/alphax-py",
+  "crates/alphax-records",
+  "crates/alphax-signals",
+  "crates/alphax-analysis",
+  "crates/alphax-expr",
 ]
 
 [workspace.package]
@@ -20,7 +20,7 @@ version = "0.3.0"
 edition = "2024"
 rust-version = "1.85"
 license = "Apache-2.0"
-repository = "https://github.com/nivalume/phasor"
+repository = "https://github.com/nivalume/alphax"
 description = "Parallel factor-driven vectorized backtesting engine"
 
 [workspace.dependencies]
@@ -38,16 +38,16 @@ polars = { version = "0.46", default-features = false, features = [
   "rolling_window",
   "sign",
 ] }
-phasor-analysis = { path = "crates/phasor-analysis", version = "0.3.0" }
-phasor-core = { path = "crates/phasor-core", version = "0.3.0" }
-phasor-exec = { path = "crates/phasor-exec", version = "0.3.0" }
-phasor-generic = { path = "crates/phasor-generic", version = "0.3.0" }
-phasor-indicators = { path = "crates/phasor-indicators", version = "0.3.0" }
-phasor-expr = { path = "crates/phasor-expr", version = "0.3.0" }
-phasor-model = { path = "crates/phasor-model", version = "0.3.0" }
-phasor-records = { path = "crates/phasor-records", version = "0.3.0" }
-phasor-signals = { path = "crates/phasor-signals", version = "0.3.0" }
-phasor-sim = { path = "crates/phasor-sim", version = "0.3.0" }
+alphax-analysis = { path = "crates/alphax-analysis", version = "0.3.0" }
+alphax-core = { path = "crates/alphax-core", version = "0.3.0" }
+alphax-exec = { path = "crates/alphax-exec", version = "0.3.0" }
+alphax-generic = { path = "crates/alphax-generic", version = "0.3.0" }
+alphax-indicators = { path = "crates/alphax-indicators", version = "0.3.0" }
+alphax-expr = { path = "crates/alphax-expr", version = "0.3.0" }
+alphax-model = { path = "crates/alphax-model", version = "0.3.0" }
+alphax-records = { path = "crates/alphax-records", version = "0.3.0" }
+alphax-signals = { path = "crates/alphax-signals", version = "0.3.0" }
+alphax-sim = { path = "crates/alphax-sim", version = "0.3.0" }
 
 
 [workspace.lints.rust]
@@ -58,7 +58,7 @@ unsafe_code = "deny"
 # The simulation kernels keep their arithmetic exactly, not idiomatic Rust.
 # These lints fire constantly on it and hide real findings.
 too_many_arguments = "allow"
-# Deliberate: financial comparisons go through `phasor_core::math`, never `==`.
+# Deliberate: financial comparisons go through `alphax_core::math`, never `==`.
 float_cmp = "deny"
 
 [profile.release]

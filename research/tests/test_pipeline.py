@@ -4,9 +4,9 @@ import json
 
 import pytest
 import yaml
-from phasor_lab import pipeline
-from phasor_lab.protocol import experiment_type
-from phasor_lab.types.factor_ts import FactorTS
+from alphax_lab import pipeline
+from alphax_lab.protocol import experiment_type
+from alphax_lab.types.factor_ts import FactorTS
 
 from tests.test_spec_and_cards import CARD, MA_GAP
 
@@ -166,12 +166,12 @@ def test_real_catalog_run(tmp_path):
     """End to end on real bars with the real experiment type (skipped without the catalog)."""
     from pathlib import Path
 
-    from phasor_lab import data as bars
+    from alphax_lab import data as bars
 
     policy = pipeline.policies.DEFAULT_POLICY
     key = bars.bar_key("BTCUSDT", policy["data"]["venue"], policy["data"]["interval"])
     if not (Path(policy["data"]["catalog"]).expanduser() / "data" / "bars" / key).exists():
-        pytest.skip("phasor catalog with BTCUSDT bars is not available")
+        pytest.skip("alphax catalog with BTCUSDT bars is not available")
     lab = pipeline.Lab(tmp_path / "ledger")
     policy_doc = yaml.safe_load(lab.policy_path.read_text())
     policy_doc["harness"]["alpha158_reference"] = False

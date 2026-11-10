@@ -13,7 +13,7 @@ from tempfile import TemporaryDirectory
 from time import perf_counter
 from typing import Any
 
-import phasor
+import alphax
 import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
@@ -42,7 +42,7 @@ def schemas():
         "funding": [("rate", pa.float64())],
         "news": [("headline", pa.string()), ("sentiment", pa.float64())],
     }
-    return [phasor.data.DataSchema(
+    return [alphax.data.DataSchema(
         name=name,
         input=pa.schema([("timestamp_ms", pa.uint64()), ("published_ms", pa.uint64()), *extra]),
         output=pa.schema([("event_time", pa.uint64()), ("available_time", pa.uint64()), *extra]),
@@ -110,8 +110,8 @@ def run(root, source):
         keys = BAR_TYPES if definition.name == "bars" else INSTRUMENTS
         # The catalog layout is the caller's: a schema directory holds one
         # directory per instrument, and Source joins the two.
-        data = (phasor.data.Source(root / "data" / definition.name, definition, keys) if source == "catalog" else
-                phasor.data.Source({key: root / f"{definition.name}-{col}.{source}" for col, key in enumerate(keys)}, definition))
+        data = (alphax.data.Source(root / "data" / definition.name, definition, keys) if source == "catalog" else
+                alphax.data.Source({key: root / f"{definition.name}-{col}.{source}" for col, key in enumerate(keys)}, definition))
         loaded[definition.name] = data.load()
     timings["load_decode"] = perf_counter() - started
     timings["load_decode_peak_rss_mib"] = peak_rss_mib()
@@ -132,7 +132,7 @@ def run(root, source):
         expressions[f"fast_{index}"] = f"Mean($close, {fast})"
         expressions[f"slow_{index}"] = f"Mean($close, {slow})"
     started = perf_counter()
-    values = phasor.FactorSet.compile(expressions).evaluate(fields)
+    values = alphax.FactorSet.compile(expressions).evaluate(fields)
     timings["factors"] = perf_counter() - started
     timings["factors_peak_rss_mib"] = peak_rss_mib()
     entries = delayed(np.concatenate([
@@ -143,7 +143,7 @@ def run(root, source):
         for i in range(len(PAIRS))], axis=1))
     column_map = np.tile(np.arange(panel.n_cols), len(PAIRS))
     started = perf_counter()
-    portfolio = phasor.from_signals(
+    portfolio = alphax.from_signals(
         panel.close, entries, exits, column_map=column_map,
         init_cash=10_000.0, fees=0.001, slippage=0.0005,
         ann_factor=365*24*60, threads=4,
@@ -162,7 +162,7 @@ def main():
     parser.add_argument("--dir", type=Path, help="Read existing inputs; never write samples here")
     args = parser.parse_args()
     if args.dir is None:
-        with TemporaryDirectory(prefix="phasor-demo-") as directory:
+        with TemporaryDirectory(prefix="alphax-demo-") as directory:
             root = Path(directory)
             write_samples(root, args.source)
             result = run(root, args.source)

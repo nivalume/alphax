@@ -4,36 +4,36 @@ import argparse
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-import phasor
+import alphax
 import binance
 import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
 
 
-@phasor.strategy
+@alphax.strategy
 def ma_cross(data, fast=10, slow=50):
-    values = phasor.factors(
+    values = alphax.factors(
         data,
         fast=f"Mean($close, {fast})",
         slow=f"Mean($close, {slow})",
     )
     return (
-        phasor.crossed_above(values["fast"], values["slow"]),
-        phasor.crossed_above(values["slow"], values["fast"]),
+        alphax.crossed_above(values["fast"], values["slow"]),
+        alphax.crossed_above(values["slow"], values["fast"]),
     )
 
 
 def load_panel(instruments, interval, directory):
     fields = [(name, pa.float64()) for name in ("open", "high", "low", "close", "volume")]
-    schema = phasor.data.DataSchema(
+    schema = alphax.data.DataSchema(
         name="bars",
         input=pa.schema([("close_time", pa.uint64()), *fields]),
         output=pa.schema([("time", pa.uint64()), *fields]),
         event_time="time", available_time="time", decode=decode_cached,
     )
     unit = {"m": "MINUTE", "h": "HOUR", "d": "DAY", "w": "WEEK"}[interval[-1]]
-    return phasor.data.Source({
+    return alphax.data.Source({
         f"{i}-{int(interval[:-1])}-{unit}-LAST-EXTERNAL": binance._cache_path(directory, str(i), interval)
         for i in instruments
     }, schema).prepare()
@@ -63,8 +63,8 @@ def main():
     symbols = tuple(
         symbol.strip() for symbol in args.symbols.split(",") if symbol.strip()
     )
-    instruments = tuple(phasor.InstrumentId.parse(s) for s in symbols)
-    temporary = TemporaryDirectory(prefix="phasor-crypto-") if args.demo else None
+    instruments = tuple(alphax.InstrumentId.parse(s) for s in symbols)
+    temporary = TemporaryDirectory(prefix="alphax-crypto-") if args.demo else None
     try:
         directory = Path(temporary.name if temporary else args.dir)
         if args.demo:

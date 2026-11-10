@@ -1,14 +1,14 @@
 [project]
-name = "phasor-dev"
+name = "alphax-dev"
 version = "0.0.0"
 requires-python = ">=3.14,<3.15"
-dependencies = ["phasor-trader[data]"]
+dependencies = ["alphax-trader[data]"]
 
 [tool.uv]
 package = false
 
 [tool.uv.sources]
-phasor-trader = { path = "crates/phasor-py", editable = true }
+alphax-trader = { path = "crates/alphax-py", editable = true }
 
 [dependency-groups]
 research = ["openai>=1", "pymupdf", "pytest>=7", "pyyaml"]

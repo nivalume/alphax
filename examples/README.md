@@ -1,6 +1,6 @@
-# Phasor Strategy & Feature Examples
+# Alphax Strategy & Feature Examples
 
-This directory contains self-contained, runnable example scripts demonstrating **every feature, scenario, and dimension** of the `phasor` backtesting and quantitative research engine.
+This directory contains self-contained, runnable example scripts demonstrating **every feature, scenario, and dimension** of the `alphax` backtesting and quantitative research engine.
 
 ## Quick Start
 
@@ -24,7 +24,7 @@ uv run python examples/live_scale_and_ops.py
 ### 1. Core Strategy & Portfolio Basics
 | Script | Scenario & Features Covered |
 | :--- | :--- |
-| [`sweep.py`](./sweep.py) | `@phasor.strategy` decorator, `phasor.factors`, `crossed_above` / `crossed_below`, single backtest `.run()`, and Cartesian parameter `.sweep()`. |
+| [`sweep.py`](./sweep.py) | `@alphax.strategy` decorator, `alphax.factors`, `crossed_above` / `crossed_below`, single backtest `.run()`, and Cartesian parameter `.sweep()`. |
 | [`portfolio.py`](./portfolio.py) | Target-percent rebalancing (`from_orders(..., size_type="targetpercent", cash_sharing=True)`) and multi-group allocation (`group_lens`, `column_map`). |
 | [`multi_data.py`](./multi_data.py) | Multi-frequency data alignment: `DataSchema`, `Catalog`, `BarPanel`, point-in-time `Dataset.asof` joins, and rolling `Dataset.window` tensor views. |
 
@@ -38,19 +38,19 @@ uv run python examples/live_scale_and_ops.py
 | Script | Scenario & Features Covered |
 | :--- | :--- |
 | [`stops_limits_and_risk.py`](./stops_limits_and_risk.py) | `price="nextopen"`, bid/ask spreads, lot granularity, partial fills, audit logs (`pf.logs()`, `pf.reason_counts()`), resting pullback & breakout limit orders (`order_type="limit"`, `limit_reverse`, `limit_tif`), multi-tranche stop ladders (`stop_ladder="adaptweighted"`), `td_stop` / `dt_stop`, Rust risk rules (`risk`, `risk_stop`, `breakeven`, `max_positions`, `max_exposure`), and MFE/MAE `excursions` / `edge_ratio`. |
-| [`margin_futures_and_carry.py`](./margin_futures_and_carry.py) | Cash leverage (`lazy` vs `eager`, `debt_rate`, `borrow_rate`), **Spot + Perpetual Delta-Neutral Funding Rate Carry** (`account_type=["cash", "margin"]`, `funding_rate`, `mark_price`), tiered maintenance margin & partial liquidation (`liquidation_step`, `auto_deleverage`), continuous futures roll (`phasor.futures`), and FX conversion (`phasor.fx`). |
+| [`margin_futures_and_carry.py`](./margin_futures_and_carry.py) | Cash leverage (`lazy` vs `eager`, `debt_rate`, `borrow_rate`), **Spot + Perpetual Delta-Neutral Funding Rate Carry** (`account_type=["cash", "margin"]`, `funding_rate`, `mark_price`), tiered maintenance margin & partial liquidation (`liquidation_step`, `auto_deleverage`), continuous futures roll (`alphax.futures`), and FX conversion (`alphax.fx`). |
 
 ### 4. Portfolio Construction, Intraday Sessions & Path-Dependent Callbacks
 | Script | Scenario & Features Covered |
 | :--- | :--- |
-| [`allocation_and_intraday.py`](./allocation_and_intraday.py) | Dynamic asset allocation (`equal_weight`, `inverse_volatility`, `min_variance`, `max_sharpe`, `risk_parity`) with DCA `cash_deposits`, calendar & signal utilities (`phasor.signals`), DST-aware intraday trading sessions (`phasor.sessions`) with EOD `force_exit`, and multi-resolution `1h -> 15m` alignment (`phasor.resolution`). |
+| [`allocation_and_intraday.py`](./allocation_and_intraday.py) | Dynamic asset allocation (`equal_weight`, `inverse_volatility`, `min_variance`, `max_sharpe`, `risk_parity`) with DCA `cash_deposits`, calendar & signal utilities (`alphax.signals`), DST-aware intraday trading sessions (`alphax.sessions`) with EOD `force_exit`, and multi-resolution `1h -> 15m` alignment (`alphax.resolution`). |
 | [`stateful_callbacks.py`](./stateful_callbacks.py) | Path-dependent Python hooks: `from_order_func` (`pre_group_func`, `pre_segment_func`, `order_func`, `post_order_func`, `post_segment_func` drawdown circuit breaker), `flexible=True` multi-leg statistical arbitrage pairs trading, and `from_signals` (`signal_func`, `adjust_func` ratcheting stops). |
 
 ### 5. Quantitative Research, ML Validation & Production Ops
 | Script | Scenario & Features Covered |
 | :--- | :--- |
-| [`research_and_validation.py`](./research_and_validation.py) | Synthetic markets (`phasor.synthetic`), event study forward paths (`phasor.events`), ML triple-barrier & trend/pivot labeling (`phasor.labels`), classifier evaluation (`phasor.predictions`), constrained grid/random search (`phasor.params`), walk-forward & purged K-fold CV (`phasor.validation`), and anti-overfitting corrections (`probabilistic_sharpe`, `deflated_sharpe`, `pbo_cscv`). |
-| [`live_scale_and_ops.py`](./live_scale_and_ops.py) | Live bar-by-bar `Stepper` (`propose`, `commit`, `reconcile`), incremental continuation (`resume=pf`), portfolio algebra (`phasor.portfolios`) & standalone `phasor.returns`, `chunked.run`, `distributed.run`, disk `Cache`, `save`/`load`, declarative TOML `phasor.config`, `phasor.schedule`, and `check_shapes` / `docs.search`. |
+| [`research_and_validation.py`](./research_and_validation.py) | Synthetic markets (`alphax.synthetic`), event study forward paths (`alphax.events`), ML triple-barrier & trend/pivot labeling (`alphax.labels`), classifier evaluation (`alphax.predictions`), constrained grid/random search (`alphax.params`), walk-forward & purged K-fold CV (`alphax.validation`), and anti-overfitting corrections (`probabilistic_sharpe`, `deflated_sharpe`, `pbo_cscv`). |
+| [`live_scale_and_ops.py`](./live_scale_and_ops.py) | Live bar-by-bar `Stepper` (`propose`, `commit`, `reconcile`), incremental continuation (`resume=pf`), portfolio algebra (`alphax.portfolios`) & standalone `alphax.returns`, `chunked.run`, `distributed.run`, disk `Cache`, `save`/`load`, declarative TOML `alphax.config`, `alphax.schedule`, and `check_shapes` / `docs.search`. |
 
 ### 6. Live Exchange Data & Webhook Notifications (Network Optional)
 | Script | Scenario & Features Covered |

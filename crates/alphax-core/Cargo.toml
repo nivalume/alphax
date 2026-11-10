@@ -1,0 +1,13 @@
+[package]
+name = "alphax-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Foundational types for alphax: float tolerances, flexible broadcasting, column labels"
+
+[lints]
+workspace = true
+
+[dependencies]

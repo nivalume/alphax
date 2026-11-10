@@ -1,6 +1,6 @@
-"""Download the complete Binance USD-M futures kline history into phasor's catalog.
+"""Download the complete Binance USD-M futures kline history into alphax's catalog.
 
-The default destination is ``~/.cache/phasor/catalog`` and the resulting layout is::
+The default destination is ``~/.cache/alphax/catalog`` and the resulting layout is::
 
     data/bars/BTCUSDT.BINANCE-15-MINUTE-LAST-EXTERNAL/2020-01.parquet
 
@@ -19,7 +19,7 @@ Examples::
 
 The default output is normalized Parquet with the five first-class Bar fields,
 event/availability timestamps in UTC nanoseconds, and the vendor fields kept
-under their own names.  This is still ordinary user data: ``phasor.data`` needs
+under their own names.  This is still ordinary user data: ``alphax.data`` needs
 an explicit DataSchema to project it into a BarPanel.
 """
 
@@ -116,7 +116,7 @@ def _bar_key(symbol: str, interval: str) -> str:
 
 
 def _request(url: str) -> bytes | None:
-    request = Request(url, headers={"User-Agent": "phasor-binance-vision/0.1"})
+    request = Request(url, headers={"User-Agent": "alphax-binance-vision/0.1"})
     try:
         with urlopen(request, timeout=60) as response:
             return response.read()
@@ -294,7 +294,7 @@ def download(*, root: Path, symbols: Iterable[str] = DEFAULT_SYMBOLS, intervals:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", type=Path, default=Path("~/.cache/phasor/catalog"))
+    parser.add_argument("--root", type=Path, default=Path("~/.cache/alphax/catalog"))
     parser.add_argument("--symbols", nargs="+", default=DEFAULT_SYMBOLS)
     parser.add_argument("--intervals", nargs="+", default=DEFAULT_INTERVALS, choices=tuple(INTERVALS))
     parser.add_argument("--start", default="2019-01", help="first month, YYYY-MM")

@@ -1,4 +1,4 @@
-"""Generate the Qlib oracles for phasor-expr's Qlib extensions.
+"""Generate the Qlib oracles for alphax-expr's Qlib extensions.
 
 Writes four fixtures:
 

@@ -2,7 +2,7 @@ import json
 import subprocess
 
 import pytest
-from phasor_lab.protocol.ledger import Ledger, LedgerError
+from alphax_lab.protocol.ledger import Ledger, LedgerError
 
 
 def test_append_counts_and_commits(tmp_path):

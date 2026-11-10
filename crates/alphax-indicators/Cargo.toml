@@ -1,0 +1,15 @@
+[package]
+name = "alphax-indicators"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Indicators and the parameter sweep that turns them into a column axis"
+
+[lints]
+workspace = true
+
+[dependencies]
+alphax-core = { workspace = true }
+alphax-generic = { workspace = true }

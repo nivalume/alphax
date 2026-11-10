@@ -1,0 +1,17 @@
+[package]
+name = "alphax-sim"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Vectorized simulation loops for alphax"
+
+[lints]
+workspace = true
+
+[dependencies]
+alphax-core = { workspace = true }
+alphax-exec = { workspace = true }
+alphax-model = { workspace = true }
+alphax-records = { workspace = true }

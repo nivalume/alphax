@@ -1,5 +1,5 @@
 {
-  "include": ["examples", "research", "crates/phasor-py/python"],
+  "include": ["examples", "research", "crates/alphax-py/python"],
   "exclude": [".venv", "target", "research/tests"],
   "venvPath": ".",
   "venv": ".venv",
@@ -8,11 +8,11 @@
   "executionEnvironments": [
     {
       "root": "examples",
-      "extraPaths": ["crates/phasor-py/python"]
+      "extraPaths": ["crates/alphax-py/python"]
     },
     {
       "root": "research",
-      "extraPaths": ["crates/phasor-py/python"]
+      "extraPaths": ["crates/alphax-py/python"]
     }
   ]
 }

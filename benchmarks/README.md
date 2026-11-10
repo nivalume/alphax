@@ -11,7 +11,7 @@ Two jobs, and they need different things from the same measurements:
 ```bash
 # The engine. Release only: a debug build of the execution kernel is ~50x
 # slower and the numbers mean nothing.
-cargo run --release --example bench -p phasor-sim
+cargo run --release --example bench -p alphax-sim
 
 python benchmarks/compare.py                    # summary
 python benchmarks/compare.py --check-baseline   # regression gate
@@ -35,7 +35,7 @@ gate is tested by corrupting a result file and confirming it fires, rather than
 trusted because it exists.
 
 The loop is timed on its own, with no language bindings in the measurement. The
-Python layer (`phasor-py`) is timed separately by `bench_python.py`, which
+Python layer (`alphax-py`) is timed separately by `bench_python.py`, which
 covers what a caller pays around the loop — signal construction, the sweep
 wrapper, `Portfolio` reads — rather than the loop itself.
 
@@ -192,15 +192,15 @@ loop's mean grew by more than 3%.
 valgrind does not run on macOS, so there it runs in a container:
 
 ```bash
-docker build -t phasor-callgrind -f benchmarks/callgrind.Dockerfile benchmarks
-docker run --rm -v "$PWD:$PWD" -v phasor-cargo:/usr/local/cargo/registry \
-    -w "$PWD" phasor-callgrind python3 benchmarks/instructions.py --base origin/main
+docker build -t alphax-callgrind -f benchmarks/callgrind.Dockerfile benchmarks
+docker run --rm -v "$PWD:$PWD" -v alphax-cargo:/usr/local/cargo/registry \
+    -w "$PWD" alphax-callgrind python3 benchmarks/instructions.py --base origin/main
 ```
 
 Once, a build in the container missed an edit made just before it and the
 check counted the previous binary. A result that did not move after an edit
 deserves `CARGO_TARGET_DIR=target/instructions/head cargo clean --release -p
-phasor-sim` and a second run before it is believed.
+alphax-sim` and a second run before it is believed.
 
 **A count is not a time.** The fix that brought `from_signals` back under the
 limit showed this in both directions, measured against main on an Apple M4 machine,

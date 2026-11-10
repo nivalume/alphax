@@ -1,7 +1,7 @@
 """Live Stepper, Incremental Resume, Chunked/Distributed Execution, Caching, Config & Portfolio Ops.
 
 Scenario & Dimensions Covered:
-  1. Live Bar-by-Bar Execution (`phasor.Stepper`):
+  1. Live Bar-by-Bar Execution (`alphax.Stepper`):
      - `propose(close, size=..., **bar)` -> broker execution with partial fill / real-world
        slippage & fee -> `commit(fills)` -> exchange position `reconcile(broker_positions)`.
      - Exporting live `orders()`, `cash_records()`, `position`, and `cash`, then rebuilding a
@@ -9,7 +9,7 @@ Scenario & Dimensions Covered:
   2. Incremental Batch Continuation (`resume=pf` & `resume=SimState` -> `Segment`):
      - Extending a finished `Portfolio` onto longer history (`resume=pf_part1`), and
        advancing a low-level `SimState` (`resume=pf_part1.last_state, row_offset=100` -> `Segment`).
-  3. Portfolio Algebra (`phasor.portfolios`) & Return Series Analytics (`phasor.returns`):
+  3. Portfolio Algebra (`alphax.portfolios`) & Return Series Analytics (`alphax.returns`):
      - `Portfolio.from_records`, `select`, `column_stack`, `row_slice`, `resample_bars`,
        and `resample`.
      - Standalone `returns.metrics`, `returns.metric`, `returns.rolling`, `returns.value`,
@@ -17,12 +17,12 @@ Scenario & Dimensions Covered:
   4. Out-of-Core Chunked & Distributed Execution, Disk Caching & Persistence:
      - `chunked.run` with checkpointing and incremental history extension.
      - `distributed.run` across columns (`backend="thread"`).
-     - `cache.Cache` (`memoize`, hit/miss `stats()`) and `phasor.save` / `phasor.load`.
-  5. Declarative TOML Config (`phasor.config`), Cron Scheduler (`phasor.schedule`),
-     and Introspection Tools (`phasor.check_shapes`, `phasor.help`, `phasor.docs`):
+     - `cache.Cache` (`memoize`, hit/miss `stats()`) and `alphax.save` / `alphax.load`.
+  5. Declarative TOML Config (`alphax.config`), Cron Scheduler (`alphax.schedule`),
+     and Introspection Tools (`alphax.check_shapes`, `alphax.help`, `alphax.docs`):
      - Running a complete backtest + parameter sweep from a declarative TOML file via `config.run`.
      - Defining recurring jobs (`schedule.Job`, `schedule.File`, `crontab`, `every`, `next_time`).
-     - Pre-flight input validation with `check_shapes`, `phasor.help`, and offline doc search.
+     - Pre-flight input validation with `check_shapes`, `alphax.help`, and offline doc search.
 
 Run:
     uv run python examples/live_scale_and_ops.py
@@ -35,13 +35,13 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
-import phasor
-from phasor import cache, chunked, config, distributed, docs, portfolios, returns, schedule
+import alphax
+from alphax import cache, chunked, config, distributed, docs, portfolios, returns, schedule
 
 
 def demo_live_stepper() -> None:
-    print("=== 1. Live Bar-by-Bar `phasor.Stepper` (Propose -> Broker Commit -> Reconcile) ===")
-    stepper = phasor.Stepper(
+    print("=== 1. Live Bar-by-Bar `alphax.Stepper` (Propose -> Broker Commit -> Reconcile) ===")
+    stepper = alphax.Stepper(
         n_cols=2,
         init_cash=50_000.0,
         cash_sharing=True,
@@ -100,14 +100,14 @@ def demo_incremental_resume() -> None:
     entries[10::35] = True
     exits[25::35] = True
 
-    pf_full = phasor.from_signals(close, entries, exits, init_cash=10_000.0, fees=0.001)
-    pf_part1 = phasor.from_signals(close[:100], entries[:100], exits[:100], init_cash=10_000.0, fees=0.001)
+    pf_full = alphax.from_signals(close, entries, exits, init_cash=10_000.0, fees=0.001)
+    pf_part1 = alphax.from_signals(close[:100], entries[:100], exits[:100], init_cash=10_000.0, fees=0.001)
 
     # High-level continuation: pass the full extended history with `resume=pf_part1`
-    pf_resumed = phasor.from_signals(close, entries, exits, resume=pf_part1, fees=0.001)
+    pf_resumed = alphax.from_signals(close, entries, exits, resume=pf_part1, fees=0.001)
 
     # Low-level continuation: pass only the new slice `[99:]` (1 lookback bar) with `resume=pf_part1.last_state`
-    seg_part2 = phasor.from_signals(
+    seg_part2 = alphax.from_signals(
         close[99:],
         entries[99:],
         exits[99:],
@@ -125,7 +125,7 @@ def demo_incremental_resume() -> None:
 
 
 def demo_portfolio_algebra_and_returns_module() -> None:
-    print("\n=== 3. Portfolio Algebra (`phasor.portfolios`) & Standalone `phasor.returns` ===")
+    print("\n=== 3. Portfolio Algebra (`alphax.portfolios`) & Standalone `alphax.returns` ===")
     rng = np.random.default_rng(44)
     n_bars = 96  # 4 days of 1-hour bars
     index = np.arange(
@@ -134,12 +134,12 @@ def demo_portfolio_algebra_and_returns_module() -> None:
         np.timedelta64(1, "h"),
     )
     close = 100.0 * np.exp(np.cumsum(rng.normal(0.0003, 0.008, size=(n_bars, 3)), axis=0))
-    fast = phasor.indicators.ma(close, 4).ma
-    slow = phasor.indicators.ma(close, 12).ma
-    pf = phasor.from_signals(
+    fast = alphax.indicators.ma(close, 4).ma
+    slow = alphax.indicators.ma(close, 12).ma
+    pf = alphax.from_signals(
         close,
-        phasor.crossed_above(fast, slow),
-        phasor.crossed_above(slow, fast),
+        alphax.crossed_above(fast, slow),
+        alphax.crossed_above(slow, fast),
         index=index,
         init_cash=10_000.0,
     )
@@ -151,7 +151,7 @@ def demo_portfolio_algebra_and_returns_module() -> None:
     bar_of_day = portfolios.resample_bars(index, "D")
     pf_daily = portfolios.resample(pf, bar_of_day)
 
-    # Standalone `phasor.returns` analytics directly on raw return vectors without a Portfolio
+    # Standalone `alphax.returns` analytics directly on raw return vectors without a Portfolio
     raw_rets = pf.returns(0)
     bench_rets = pf.returns(1)
     solo_names, paired_names = returns.metrics()
@@ -166,7 +166,7 @@ def demo_portfolio_algebra_and_returns_module() -> None:
         f"Resampled 1D bars={pf_daily.n_rows}"
     )
     print(
-        f"Standalone `phasor.returns` ({len(solo_names)} solo + {len(paired_names)} benchmark metrics): "
+        f"Standalone `alphax.returns` ({len(solo_names)} solo + {len(paired_names)} benchmark metrics): "
         f"Sharpe={sr_val:.2f}, Final Value=${comp_val[-1]:,.2f}, Rolling24h shape={roll_sr.shape}, "
         f"Drawdowns={len(dd_info['col'])}, Stats keys={len(ret_stats)}"
     )
@@ -176,10 +176,10 @@ def demo_chunked_distributed_cache_and_persistence() -> None:
     print("\n=== 4. Chunked & Distributed Execution, Disk Cache & Portfolio Persistence ===")
     rng = np.random.default_rng(77)
     close = 100.0 * np.exp(np.cumsum(rng.normal(0.0003, 0.01, size=(240, 4)), axis=0))
-    fast = phasor.indicators.ma(close, 5).ma
-    slow = phasor.indicators.ma(close, 15).ma
-    entries = phasor.crossed_above(fast, slow)
-    exits = phasor.crossed_above(slow, fast)
+    fast = alphax.indicators.ma(close, 5).ma
+    slow = alphax.indicators.ma(close, 15).ma
+    entries = alphax.crossed_above(fast, slow)
+    exits = alphax.crossed_above(slow, fast)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
@@ -209,15 +209,15 @@ def demo_chunked_distributed_cache_and_persistence() -> None:
 
         @disk_cache.memoize
         def compute_heavy_rsi(arr: np.ndarray, window: int) -> np.ndarray:
-            return phasor.indicators.rsi(arr, window=window).rsi
+            return alphax.indicators.rsi(arr, window=window).rsi
 
         _ = compute_heavy_rsi(close, 14)  # miss
         _ = compute_heavy_rsi(close, 14)  # hit
 
         # 4. Save and reload Portfolio state
-        pf_file = tmp / "saved_portfolio.phasor"
-        phasor.save(pf_dist, pf_file)
-        pf_loaded = phasor.load(pf_file)
+        pf_file = tmp / "saved_portfolio.alphax"
+        alphax.save(pf_dist, pf_file)
+        pf_loaded = alphax.load(pf_file)
 
         parity = all(np.allclose(pf_chunked.value(c), pf_dist.value(c)) for c in range(4))
         print(
@@ -228,7 +228,7 @@ def demo_chunked_distributed_cache_and_persistence() -> None:
 
 
 def demo_declarative_config_schedule_and_tools() -> None:
-    print("\n=== 5. Declarative TOML Config (`phasor.config`), Scheduler & Developer Tools ===")
+    print("\n=== 5. Declarative TOML Config (`alphax.config`), Scheduler & Developer Tools ===")
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         # Write synthetic long-format CSV market data and a declarative TOML strategy config
@@ -263,7 +263,7 @@ slow = [20, 30]
 
 [output]
 stats = "stats.json"
-portfolio = "last.phasor"
+portfolio = "last.alphax"
 """
         )
         cfg_res = config.run(toml_path)
@@ -280,14 +280,14 @@ portfolio = "last.phasor"
         next_fire = schedule.next_time(dt.datetime(2025, 1, 1, 12, 15), at="16:30")
         cron_line = schedule.crontab(toml_path, at="16:30", weekdays="1-5")
 
-        # Pre-flight shape validation, `phasor.help`, & offline BM25 doc search
-        shape_report = phasor.check_shapes(
+        # Pre-flight shape validation, `alphax.help`, & offline BM25 doc search
+        shape_report = alphax.check_shapes(
             c,
             entries=c > 100,
             force_exit=np.zeros(len(c), dtype=bool),
             size=np.array([1.0]),
         )
-        help_snippet = phasor.help("indicators.rsi", echo=False).splitlines()[0]
+        help_snippet = alphax.help("indicators.rsi", echo=False).splitlines()[0]
         doc_hits = docs.search("deflated_sharpe", limit=2)
 
         last_pf = cfg_res["portfolios"][-1]

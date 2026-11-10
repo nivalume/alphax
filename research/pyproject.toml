@@ -3,20 +3,20 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "phasor-lab"
+name = "alphax-lab"
 version = "0.1.0"
-description = "Pre-registered factor research protocol on phasor"
+description = "Pre-registered factor research protocol on alphax"
 requires-python = ">=3.10"
-dependencies = ["phasor-trader[data]", "numpy", "pyyaml", "pymupdf", "openai>=1"]
+dependencies = ["alphax-trader[data]", "numpy", "pyyaml", "pymupdf", "openai>=1"]
 
 [project.optional-dependencies]
 test = ["pytest>=7"]
 
 [project.scripts]
-phasor-lab = "phasor_lab.cli:main"
+alphax-lab = "alphax_lab.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["phasor_lab*"]
+include = ["alphax_lab*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -35,7 +35,7 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
-import phasor
+import alphax
 
 
 def make_cross_sectional_universe(
@@ -83,8 +83,8 @@ def make_cross_sectional_universe(
 
 def demo_expression_introspection(fields: dict[str, np.ndarray]) -> None:
     print("=== 1. Expression Compilation & Look-Ahead Introspection ===")
-    expr = phasor.Expression.compile("CSRank(Mean($close / Ref($close, 1) - 1, 20))")
-    future_expr = phasor.Expression.compile("Ref($close, -5) / $close - 1")
+    expr = alphax.Expression.compile("CSRank(Mean($close / Ref($close, 1) - 1, 20))")
+    future_expr = alphax.Expression.compile("Ref($close, -5) / $close - 1")
 
     vals = expr.evaluate(fields)
     print(f"Compiled:        {expr}")
@@ -95,7 +95,7 @@ def demo_expression_introspection(fields: dict[str, np.ndarray]) -> None:
 
 def demo_custom_factor_dsl(fields: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
     print("\n=== 2. Rich Multi-Dimensional FactorSet DSL ===")
-    fset = phasor.FactorSet.compile(
+    fset = alphax.FactorSet.compile(
         {
             # Time-series momentum, regression slope/R2/residual, and decay
             "ts_mom_10": "$close / Ref($close, 10) - 1",
@@ -131,18 +131,18 @@ def demo_custom_factor_dsl(fields: dict[str, np.ndarray]) -> dict[str, np.ndarra
         arr = out[name]
         print(f"  {name:<18} nan_ratio={np.isnan(arr).mean():.1%}  last_abs_sum={np.nansum(np.abs(arr[-1])):.4f}")
 
-    # One-step convenience evaluation via `phasor.factors(data, **named_exprs)` -> returns a dict
-    quick = phasor.factors(fields, fast_ema="EMA($close, 8)", slow_ema="EMA($close, 21)")
-    print(f"Quick `phasor.factors(fields, ...)` keys={list(quick.keys())}, fast_ema shape={quick['fast_ema'].shape}")
+    # One-step convenience evaluation via `alphax.factors(data, **named_exprs)` -> returns a dict
+    quick = alphax.factors(fields, fast_ema="EMA($close, 8)", slow_ema="EMA($close, 21)")
+    print(f"Quick `alphax.factors(fields, ...)` keys={list(quick.keys())}, fast_ema shape={quick['fast_ema'].shape}")
     return out
 
 
 def demo_builtin_alpha_libraries(fields: dict[str, np.ndarray]) -> None:
     print("\n=== 3. Built-in Alpha Libraries (Alpha158, Alpha360, WorldQuant 101) ===")
-    a158 = phasor.alpha158()
-    a360 = phasor.alpha360()
-    wq_pv = phasor.wq101(all=False)
-    wq_all = phasor.wq101(all=True)
+    a158 = alphax.alpha158()
+    a360 = alphax.alpha360()
+    wq_pv = alphax.wq101(all=False)
+    wq_all = alphax.wq101(all=True)
 
     out_158 = a158.evaluate(fields)
     out_wq = wq_all.evaluate(fields)
@@ -150,14 +150,14 @@ def demo_builtin_alpha_libraries(fields: dict[str, np.ndarray]) -> None:
     print(f"Alpha360:     {len(a360.names):>3} factors compiled (60 lags x 6 OHLCV/VWAP fields)")
     print(f"WQ101 (pv):   {len(wq_pv.names):>3} price-volume factors")
     print(f"WQ101 (all):  {len(wq_all.names):>3} total factors (including IndNeutralize & cap)")
-    print(f"Sample WQ#48: {phasor.wq101_formula(48)}")
-    print(f"Sample WQ#101:{phasor.wq101_formula(101)} -> mean={np.nanmean(out_wq['alpha101']):.4f}")
+    print(f"Sample WQ#48: {alphax.wq101_formula(48)}")
+    print(f"Sample WQ#101:{alphax.wq101_formula(101)} -> mean={np.nanmean(out_wq['alpha101']):.4f}")
     print(f"Sample A158['KLEN'] mean={np.nanmean(out_158['KLEN']):.4f}")
 
     # Out-of-core symbol-batched evaluation (`evaluate_batches`) & Parquet export (`to_parquet`)
     with tempfile.TemporaryDirectory() as tmpdir:
         pq_path = Path(tmpdir) / "custom_factors.parquet"
-        sub_fset = phasor.FactorSet.compile({"roc5": "$close / Ref($close, 5) - 1", "vol5": "Std($close, 5)"})
+        sub_fset = alphax.FactorSet.compile({"roc5": "$close / Ref($close, 5) - 1", "vol5": "Std($close, 5)"})
         col_spans: list[tuple[int, int]] = []
         sub_fset.evaluate_batches(fields, batch=5, sink=lambda s, e, vals: col_spans.append((s, e)))
         sub_fset.to_parquet(str(pq_path), fields, batch=5)
@@ -174,7 +174,7 @@ def demo_cross_sectional_long_short_strategy(
     n_bars, n_assets = close.shape
 
     # Rank cross-sectionally at each bar after warm-up; go long top 3 (+12% each), short bottom 3 (-12% each)
-    cs_rank = phasor.Expression.compile("CSRank(IndNeutralize($close / Ref($close, 15) - 1, $industry))").evaluate(fields)
+    cs_rank = alphax.Expression.compile("CSRank(IndNeutralize($close / Ref($close, 15) - 1, $industry))").evaluate(fields)
     warmup = 20
 
     # Rebalance weekly (every 5 bars) using signed targetpercent orders (`np.nan` = hold on non-rebalance bars)
@@ -186,7 +186,7 @@ def demo_cross_sectional_long_short_strategy(
         w[row_rank <= 0.20] = -0.12
         target_weights[t] = w
 
-    pf = phasor.from_signals(
+    pf = alphax.from_signals(
         close,
         order_mode=True,
         size=target_weights,

@@ -1,0 +1,14 @@
+[package]
+name = "alphax-model"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Domain model for alphax: fixed-point values, identifiers, bars, enums"
+
+[lints]
+workspace = true
+
+[dependencies]
+alphax-core = { workspace = true }

@@ -1,6 +1,6 @@
 import pytest
-from phasor_lab.protocol import cards, policy
-from phasor_lab.types.factor_ts import spec as fs
+from alphax_lab.protocol import cards, policy
+from alphax_lab.types.factor_ts import spec as fs
 
 HORIZONS = [1, 4, 24]
 LIMITS = dict(horizons=HORIZONS, max_grid=64, max_nodes=40, max_free_ratio=0.5, max_common_subtree=8, others={})
@@ -55,11 +55,11 @@ def test_parse_rejects_invalid_expressions(expression, message):
         fs.parse(expression)
 
 
-def test_parse_matches_phasor_grammar():
-    phasor = pytest.importorskip("phasor")
+def test_parse_matches_alphax_grammar():
+    alphax = pytest.importorskip("alphax")
     for source in ("($close-Ref($close,1))/(2*$close+1e-12)", "If($close>Mean($close,20),1,-1)", "Abs($volume)**0.5"):
         fs.parse(source)
-        phasor.Expression.compile(source)
+        alphax.Expression.compile(source)
 
 
 def test_values_must_lie_in_card_ranges():

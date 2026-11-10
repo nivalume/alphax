@@ -1,20 +1,20 @@
 """Dynamic Asset Allocation, Calendar Signals, Trading Sessions & Multi-Resolution.
 
 Scenario & Dimensions Covered:
-  1. Multi-Asset Portfolio Allocation (`phasor.allocation`) + Periodic DCA Deposits:
+  1. Multi-Asset Portfolio Allocation (`alphax.allocation`) + Periodic DCA Deposits:
      - Comparing all 5 dynamic weighting schemes (`equal_weight`, `inverse_volatility`,
        `min_variance`, `max_sharpe`, `risk_parity`) on a 5-asset global macro universe.
      - Using `rebalance_mask`, `weights(...)`, and `from_weights(...)` with monthly
        dollar-cost averaging (`cash_deposits`).
-  2. Calendar & Signal Processing Utilities (`phasor.signals`):
+  2. Calendar & Signal Processing Utilities (`alphax.signals`):
      - Turn-of-month / weekly calendar entries (`signals.calendar`).
      - Signal hygiene & timing: `clean`, `exit_after`, `exit_on`, `ranges`, `rank`,
        `nth_index`, `normalized_average_index`, `stats`.
-  3. Intraday Trading Session Masks & End-of-Day Flattening (`phasor.sessions`):
+  3. Intraday Trading Session Masks & End-of-Day Flattening (`alphax.sessions`):
      - Filtering signals to NY regular equity hours (`09:30`–`16:00` America/New_York,
        DST-aware) and flattening all open positions at session close via `force_exit`.
      - Overnight futures session mask (`18:00`–`17:00`).
-  4. Multi-Resolution Alignment & Resampling (`phasor.resolution`):
+  4. Multi-Resolution Alignment & Resampling (`alphax.resolution`):
      - Generating signals on coarse 1-hour bars, aligning (`resolution.align`) to
        fine 15-minute bars so intrabar stop-loss vs take-profit order is resolved
        accurately, and resampling (`resolution.resample`) equity/returns back to 1-hour.
@@ -26,8 +26,8 @@ Run:
 from __future__ import annotations
 
 import numpy as np
-import phasor
-from phasor import allocation, resolution, sessions, signals
+import alphax
+from alphax import allocation, resolution, sessions, signals
 
 
 def demo_dynamic_asset_allocation() -> None:
@@ -70,7 +70,7 @@ def demo_dynamic_asset_allocation() -> None:
 
 
 def demo_calendar_and_signal_utilities() -> None:
-    print("\n=== 2. Calendar Signals & Signal Processing Utilities (`phasor.signals`) ===")
+    print("\n=== 2. Calendar Signals & Signal Processing Utilities (`alphax.signals`) ===")
     n_bars = 120
     # Daily timestamps starting 2025-01-01
     index = np.arange(
@@ -120,14 +120,14 @@ def demo_intraday_sessions_and_force_exit() -> None:
     rth_end = sessions.session_end(index, start="09:30", end="16:00", tz="America/New_York")
     globex_mask = sessions.session_mask(index, start="18:00", end="17:00", tz="America/New_York")
 
-    fast = phasor.indicators.ma(close, 4).ma
-    slow = phasor.indicators.ma(close, 12).ma
+    fast = alphax.indicators.ma(close, 4).ma
+    slow = alphax.indicators.ma(close, 12).ma
     # Note: `crossed_above` returns 2-D `(n_bars, n_cols)` while `session_mask` returns 1-D `(n_bars,)`,
     # so use `rth_mask[:, None]` when masking 2-D signals.
-    entries = phasor.crossed_above(fast, slow) & rth_mask[:, None]
-    exits = phasor.crossed_above(slow, fast) & rth_mask[:, None]
+    entries = alphax.crossed_above(fast, slow) & rth_mask[:, None]
+    exits = alphax.crossed_above(slow, fast) & rth_mask[:, None]
 
-    pf = phasor.from_signals(
+    pf = alphax.from_signals(
         close,
         entries,
         exits,
@@ -168,10 +168,10 @@ def demo_multi_resolution_alignment() -> None:
 
     # Resample fine 15m close to coarse 1h close (`how="last"`) to compute 1h signals
     coarse_close = resolution.resample(fine_close, fine_idx, coarse_idx, how="last")
-    fast_1h = phasor.indicators.ma(coarse_close, 4).ma[:, 0]
-    slow_1h = phasor.indicators.ma(coarse_close, 10).ma[:, 0]
-    coarse_entries = phasor.crossed_above(fast_1h, slow_1h)
-    coarse_exits = phasor.crossed_above(slow_1h, fast_1h)
+    fast_1h = alphax.indicators.ma(coarse_close, 4).ma[:, 0]
+    slow_1h = alphax.indicators.ma(coarse_close, 10).ma[:, 0]
+    coarse_entries = alphax.crossed_above(fast_1h, slow_1h)
+    coarse_exits = alphax.crossed_above(slow_1h, fast_1h)
 
     # Align 1h triggers onto 15m grid (`fill=False` fires once per hour; `fill=True` forward-fills regime)
     fine_entries = resolution.align(coarse_entries, coarse_idx, fine_idx, fill=False)
@@ -180,7 +180,7 @@ def demo_multi_resolution_alignment() -> None:
     # Note: in `from_signals`, 1-D `sl_stop` is per-column `(n_cols,)`, so a time-varying stop for 1 column is `(n_fine, 1)`
     fine_sl_2d = fine_sl.reshape(-1, 1)
 
-    pf_fine = phasor.from_signals(
+    pf_fine = alphax.from_signals(
         fine_close,
         fine_entries,
         fine_exits,

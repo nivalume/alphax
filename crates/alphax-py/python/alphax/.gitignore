@@ -1,0 +1,4 @@
+# The built extension, dropped in place for an in-tree test run.
+_alphax.so
+_alphax*.pyd
+__pycache__/

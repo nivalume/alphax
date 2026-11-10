@@ -1,0 +1,27 @@
+[package]
+name = "alphax"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Parallel factor-driven vectorized backtesting engine"
+
+[lints]
+workspace = true
+
+[features]
+default = []
+polars = ["alphax-expr/polars"]
+
+[dependencies]
+alphax-analysis = { workspace = true }
+alphax-core = { workspace = true }
+alphax-exec = { workspace = true }
+alphax-generic = { workspace = true }
+alphax-indicators = { workspace = true }
+alphax-expr = { workspace = true }
+alphax-model = { workspace = true }
+alphax-records = { workspace = true }
+alphax-signals = { workspace = true }
+alphax-sim = { workspace = true }

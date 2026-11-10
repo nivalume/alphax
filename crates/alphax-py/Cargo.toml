@@ -1,0 +1,32 @@
+[package]
+name = "alphax-py"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Python bindings for alphax"
+
+[lints]
+workspace = true
+
+[lib]
+name = "_alphax"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+alphax-analysis = { workspace = true }
+alphax-core = { workspace = true }
+alphax-expr = { workspace = true }
+alphax-generic = { workspace = true }
+alphax-model = { workspace = true }
+alphax-records = { workspace = true }
+alphax-signals = { workspace = true }
+alphax-sim = { workspace = true }
+alphax-indicators = { workspace = true }
+alphax-exec = { workspace = true }
+numpy = "0.29"
+pyo3 = { version = "0.29", features = ["extension-module", "abi3-py39"] }
+
+[build-dependencies]
+pyo3-build-config = "0.29"

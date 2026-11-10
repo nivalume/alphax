@@ -17,7 +17,7 @@ Scenario & Dimensions Covered:
      - `stop_entry_price`, `stop_exit_price`, `upon_stop_exit="reverse"`, `upon_stop_update`.
      - Multi-tranche `stop_ladder="uniform"` & `"adaptweighted"` with 2-D ladder thresholds.
      - `stop_order_type="limit"` with `stop_limit_delta`.
-     - Pre-simulation `phasor.signals.generate_ohlc_stop_exits`.
+     - Pre-simulation `alphax.signals.generate_ohlc_stop_exits`.
   4. Built-in Rust Risk Rules & Excursion Analytics:
      - Volatility/ATR-sized risk budgeting (`risk` + `risk_stop`), automatic `breakeven`
        ratchet, portfolio `max_positions` and `max_exposure` caps (`cash_sharing=True`).
@@ -31,7 +31,7 @@ Run:
 from __future__ import annotations
 
 import numpy as np
-import phasor
+import alphax
 
 
 def make_intraday_ohlc(n_bars: int = 360, n_cols: int = 4, seed: int = 19) -> dict[str, np.ndarray]:
@@ -69,7 +69,7 @@ def demo_execution_realism_and_audit_logs(mkt: dict[str, np.ndarray]) -> None:
     entries[10::25, 0] = True
     exits[20::25, 0] = True
 
-    pf = phasor.from_signals(
+    pf = alphax.from_signals(
         close,
         entries,
         exits,
@@ -104,13 +104,13 @@ def demo_resting_limit_orders(mkt: dict[str, np.ndarray]) -> None:
     open_, high, low = mkt["open"][:, :2], mkt["high"][:, :2], mkt["low"][:, :2]
     index = mkt["index"]
 
-    fast = phasor.indicators.ma(close, 8).ma
-    slow = phasor.indicators.ma(close, 24).ma
-    entries = phasor.crossed_above(fast, slow)
-    exits = phasor.crossed_above(slow, fast)
+    fast = alphax.indicators.ma(close, 8).ma
+    slow = alphax.indicators.ma(close, 24).ma
+    entries = alphax.crossed_above(fast, slow)
+    exits = alphax.crossed_above(slow, fast)
 
     # Pullback limit order: place a resting buy 0.6% below signal price, expire after 6 hours or at 18:00 daily
-    pf_pullback = phasor.from_signals(
+    pf_pullback = alphax.from_signals(
         close,
         entries,
         exits,
@@ -131,7 +131,7 @@ def demo_resting_limit_orders(mkt: dict[str, np.ndarray]) -> None:
     )
 
     # Breakout stop-buy order: `limit_reverse=True` places limit ABOVE signal price, filling on upward breakout
-    pf_breakout = phasor.from_signals(
+    pf_breakout = alphax.from_signals(
         close,
         entries,
         exits,
@@ -161,7 +161,7 @@ def demo_stop_ladders_and_time_stops(mkt: dict[str, np.ndarray]) -> None:
 
     # 3-rung adaptive take-profit ladder (2%, 4%, 6%) + trailing stop + 18-hour time stop
     tp_rungs = np.array([[0.02], [0.04], [0.06]])
-    pf_ladder = phasor.from_signals(
+    pf_ladder = alphax.from_signals(
         close,
         entries,
         exits,
@@ -182,7 +182,7 @@ def demo_stop_ladders_and_time_stops(mkt: dict[str, np.ndarray]) -> None:
     )
 
     # Compare trade grouping modes (`trades="exit"` vs `"positions"`) on partial ladder exits
-    pf_pos_grouped = phasor.from_signals(
+    pf_pos_grouped = alphax.from_signals(
         close,
         entries,
         exits,
@@ -198,7 +198,7 @@ def demo_stop_ladders_and_time_stops(mkt: dict[str, np.ndarray]) -> None:
 
     # Standalone pre-simulation stop exit generator (`entries` first, `close` second)
     ladder_out: dict[str, np.ndarray] = {}
-    stop_ex, stop_px, stop_kind = phasor.signals.generate_ohlc_stop_exits(
+    stop_ex, stop_px, stop_kind = alphax.signals.generate_ohlc_stop_exits(
         entries,
         close,
         high=high,
@@ -222,15 +222,15 @@ def demo_stop_ladders_and_time_stops(mkt: dict[str, np.ndarray]) -> None:
 def demo_risk_rules_and_excursions(mkt: dict[str, np.ndarray]) -> None:
     print("\n=== 4. Rust Risk Rules (Risk-Per-Trade, Breakeven, Max Positions/Exposure) & MFE/MAE ===")
     close, open_, high, low = mkt["close"], mkt["open"], mkt["high"], mkt["low"]
-    atr_pct = phasor.indicators.atr(high, low, close, window=14).atr / close
+    atr_pct = alphax.indicators.atr(high, low, close, window=14).atr / close
     atr_stop = np.nan_to_num(2.0 * atr_pct, nan=0.03)
 
-    fast = phasor.indicators.ma(close, 10).ma
-    slow = phasor.indicators.ma(close, 30).ma
-    entries = phasor.crossed_above(fast, slow)
-    exits = phasor.crossed_above(slow, fast)
+    fast = alphax.indicators.ma(close, 10).ma
+    slow = alphax.indicators.ma(close, 30).ma
+    entries = alphax.crossed_above(fast, slow)
+    exits = alphax.crossed_above(slow, fast)
 
-    pf = phasor.from_signals(
+    pf = alphax.from_signals(
         close,
         entries,
         exits,

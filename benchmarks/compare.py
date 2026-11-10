@@ -101,7 +101,7 @@ def summary(rows: list[dict[str, str]]) -> None:
     for w in seen:
         line = f"{w:<22}"
         for t in threads:
-            v = rate.get((w, "phasor", str(t)))
+            v = rate.get((w, "alphax", str(t)))
             line += f"{fmt_rate(v) if v else '-':>14}"
         print(line)
 
@@ -241,11 +241,11 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    ours = read(RESULTS / "phasor.tsv")
+    ours = read(RESULTS / "alphax.tsv")
     if not ours:
         print(
-            "no results at benchmarks/results/phasor.tsv; run:\n"
-            "  cargo run --release --example bench -p phasor-sim",
+            "no results at benchmarks/results/alphax.tsv; run:\n"
+            "  cargo run --release --example bench -p alphax-sim",
             file=sys.stderr,
         )
         return 1
@@ -255,12 +255,12 @@ def main() -> int:
     if args.write_baseline:
         header = (
             "# Committed performance baseline for this engine.\n"
-            "# Regenerate with: cargo run --release --example bench -p phasor-sim\n"
+            "# Regenerate with: cargo run --release --example bench -p alphax-sim\n"
             "#                  python benchmarks/compare.py --write-baseline\n"
             "# Absolute numbers are machine-specific; the point is catching large\n"
             "# regressions on the same machine, not comparing across machines.\n"
         )
-        src = (RESULTS / "phasor.tsv").read_text().splitlines()
+        src = (RESULTS / "alphax.tsv").read_text().splitlines()
         body = [line for line in src if not line.startswith("#")]
         machine = [line for line in src if line.startswith("# cores")]
         BASELINE.write_text(header + "\n".join(machine + body) + "\n")

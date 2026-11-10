@@ -1,0 +1,14 @@
+[package]
+name = "alphax-signals"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Generating, cleaning and ranking entry and exit signals"
+
+[lints]
+workspace = true
+
+[dependencies]
+alphax-core = { workspace = true }

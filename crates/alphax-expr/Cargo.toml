@@ -1,0 +1,30 @@
+[package]
+name = "alphax-expr"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Factor expression DSL for alphax"
+
+[lints]
+workspace = true
+
+[dependencies]
+polars = { workspace = true, optional = true }
+alphax-core = { workspace = true }
+alphax-generic = { workspace = true }
+alphax-model = { workspace = true }
+rayon = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[features]
+default = []
+polars = ["dep:polars"]
+
+[[bench]]
+name = "backends"
+harness = false
+required-features = ["polars"]

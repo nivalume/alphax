@@ -1,19 +1,19 @@
 """A synthetic moving-average parameter sweep through the Python API."""
 
-import phasor
+import alphax
 import numpy as np
 
 
-@phasor.strategy
+@alphax.strategy
 def ma_cross(data, fast=5, slow=20):
-    values = phasor.factors(
+    values = alphax.factors(
         data,
         fast=f"Mean($close, {fast})",
         slow=f"Mean($close, {slow})",
     )
     return (
-        phasor.crossed_above(values["fast"], values["slow"]),
-        phasor.crossed_above(values["slow"], values["fast"]),
+        alphax.crossed_above(values["fast"], values["slow"]),
+        alphax.crossed_above(values["slow"], values["fast"]),
     )
 
 

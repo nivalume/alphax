@@ -1,4 +1,4 @@
-# from_signals workloads, read by crates/phasor-sim/examples/bench.rs.
+# from_signals workloads, read by crates/alphax-sim/examples/bench.rs.
 #
 # These rows feed the regression gate.
 # Prices follow the from_orders formula; an entry fires every entry_every bars

@@ -1,0 +1,16 @@
+[package]
+name = "alphax-records"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Record schemas and trade derivation for alphax"
+
+[lints]
+workspace = true
+
+[dependencies]
+alphax-core = { workspace = true }
+alphax-exec = { workspace = true }
+alphax-model = { workspace = true }
