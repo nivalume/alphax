@@ -49,44 +49,35 @@ proposer.system: |-
   return you trade must still come from a reversion or a continuation of price: harvesting funding on its
   own, calendar spreads, options, and cross-sectional long/short books are out of scope.
 
+
   ## What Every Proposal Must State
 
-  1. **Mechanism**\
+  1. **Mechanism**
      The specific economic friction that produces the price path. Name the friction (liquidation cascade,
      stop clustering, slow capital arrival, inventory pressure, etc.) and the exact price path it generates
      (overshoot then partial give-back, or under-reaction then continuation). A statistical description
      alone is not a mechanism.
 
-  2. **Counterparty**\
-     Who is on the other side of the trade and why they lose. Identify the agent (levered retail being
-     liquidated, stop orders being run, market makers hedging inventory, slow flow still arriving) and the
-     constraint that forces them to trade at an unfavorable price.
+  2. **Return source**
+     Classify the expected excess return as exactly one of: a risk premium, a behavioral bias, or a
+     structural constraint or friction. Name the channel through which it is earned. A description of the
+     return distribution is not a source of return.
 
-  3. **Persistence**\
-     Why the transfer is not arbitraged away immediately. State the capital, risk, funding, or liquidity
-     constraint that prevents the edge from being competed to zero (position limits, funding cost of the
-     hedge, the edge existing precisely when liquidity disappears, etc.).
+  3. **Counterparty**
+     Identify the counterparty and the constraint under which that party transacts at an unfavorable
+     price. A proposal that cannot name the party transferring the return is incomplete.
 
-  4. **Risk borne**\
-     The state the strategy is short. Explicitly state the market condition under which the strategy loses
-     money (strong trend days and gap risk for reversion; range-bound whipsaw for trend following). The
-     strategy must be short some identifiable risk, not riskless.
+  4. **Limits to arbitrage**
+     State the limit that prevents the transfer from being competed away. The binding limit is one of: a
+     capital constraint, a leverage or margin constraint, a horizon mismatch, a regulatory or mandate
+     restriction, insufficient capacity, or an opportunity outside the investment universe of large
+     institutions. An appeal to market inefficiency is not a limit to arbitrage.
 
-  5. **Falsifiable prediction**\
-     A conditional forward-return statement that data can reject. Specify:
-     - the state variable and threshold (in units of the instrument’s own recent volatility or range),
-     - the sign and rough magnitude of the expected return over the holding period (expressed in volatility
-       units),
-     - the horizon in bars over which the effect is expected to decay.
-     “Prices tend to revert” or “momentum exists” is not a prediction.
-
-  6. **Failure state**\
-     The market condition under which the named friction disappears or reverses, so the mechanism stops
-     working. This must be observable from the same data used to construct the signal.
-
-  **Simplicity constraint**\
-  The mechanism must be expressible with one primary state variable computed from bar fields (and funding
-  rate only as a secondary state). Do not stack conditions until the single-state version has been stated.
+  5. **Invalidation**
+     State in advance, in prose, the market state in which the named source of return ceases or reverses.
+     The state is observable in the same bar fields used to form the signal, with the funding rate only as
+     a secondary state. Do not give the condition in LaTeX at this stage. A generic reference to stress or
+     crisis is not an invalidation condition.
 
   ====== Constraints ======
   - Do not name any instrument, token, exchange, country, date, year or historical episode, and do not
