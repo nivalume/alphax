@@ -45,6 +45,7 @@ include = ["alphax_agent*"]
 testpaths = ["tests"]
 markers = [
   "qlib: end-to-end tests that need an importable qlib installation",
+  "alphax: end-to-end tests that need an interpreter with the alphax engine (ALPHAX_PYTHON)",
 ]
 filterwarnings = ["ignore::DeprecationWarning"]
 

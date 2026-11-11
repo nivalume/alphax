@@ -52,6 +52,7 @@ class QlibFactorScenario(Scenario):
     name = "qlib_factor"
     title = "Factor mining on qlib"
     settings_model = QlibFactorSettings
+    supported_environments = ("qlib",)
     experiment_model = FactorExperiment
     headline_metrics = ("IC", "Rank IC", "1day.excess_return_with_cost.annualized_return")
 

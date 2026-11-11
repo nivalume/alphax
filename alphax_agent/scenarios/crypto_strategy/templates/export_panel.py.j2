@@ -1,0 +1,237 @@
+"""Exports the strategy panels from the jfinance store with alphax.data.
+
+Written by alphax-agent; run as `python export_panel.py export_config.json` in the catalog directory.
+Each panel is `<variant>/{{ file_name }}`: `time` (bar opens, int64 UTC ns), `symbols`, and one
+(bars, symbols) float64 array per field. `meta.json` is written last, so its presence means success.
+"""
+
+import json
+import sys
+from pathlib import Path
+
+import numpy as np
+import pyarrow as pa
+import pyarrow.compute as pc
+import pyarrow.parquet as pq
+
+import alphax
+
+FILE_NAME = "{{ file_name }}"
+VARIANTS = {{ variants }}
+OHLCV = ("open", "high", "low", "close", "volume")
+ARROW = {
+    "float32": pa.float32(),
+    "float64": pa.float64(),
+    "int8": pa.int8(),
+    "int16": pa.int16(),
+    "int32": pa.int32(),
+    "int64": pa.int64(),
+    "string": pa.string(),
+}
+
+
+def fail(message):
+    print(f"ERROR: {message}", file=sys.stderr)
+    sys.exit(2)
+
+
+def nanoseconds(day):
+    return int(np.datetime64(day, "ns").astype(np.int64))
+
+
+def day(value):
+    return str(np.datetime64(int(value), "ns").astype("datetime64[D]"))
+
+
+def arrow_type(spec):
+    if spec["type"] == "decimal":
+        return pa.decimal128(int(spec["precision"]), int(spec.get("scale", 0)))
+    return ARROW[spec["type"]]
+
+
+def bar_schema(dataset):
+    """Decodes a jfinance bar file: a bar happens at its open and is known at its close (ts_close + 1 ms)."""
+    values = dataset["values"]
+    specs = {column["name"]: column for column in dataset["columns"]}
+    names = ["event_time", "available_time", *values]
+
+    def decode(batch, context):
+        available = pc.add(batch["ts_close"], pa.scalar(1_000_000, pa.int64())).cast(pa.uint64())
+        columns = [batch["ts_open"].cast(pa.uint64()), available]
+        columns += [batch[name].cast(pa.float64()) for name in values]
+        return pa.RecordBatch.from_arrays(columns, names=names)
+
+    return alphax.data.DataSchema(
+        name=dataset["slug"],
+        input=pa.schema(
+            [pa.field("ts_open", pa.int64()), pa.field("ts_close", pa.int64())]
+            + [pa.field(name, arrow_type(specs[name]), nullable=True) for name in values]
+        ),
+        output=pa.schema(
+            [pa.field("event_time", pa.uint64()), pa.field("available_time", pa.uint64())]
+            + [pa.field(name, pa.float64()) for name in values]
+        ),
+        decode=decode,
+    )
+
+
+def streams(root, suffix):
+    """Instrument id -> stream directory name, for every stream of the interval."""
+    tail = f"-{suffix}"
+    return {
+        path.name[: -len(tail)]: path.name
+        for path in sorted(Path(root).iterdir())
+        if path.is_dir() and path.name.endswith(tail)
+    }
+
+
+def liquidity(directory, start, end):
+    """In-sample bar count and median traded value of one stream."""
+    files = sorted(Path(directory).glob("*.parquet"))
+    if not files:
+        return 0, 0.0
+    available = set(pq.read_schema(files[0]).names)
+    columns = ["ts_open", "close"] + (["quote_volume"] if "quote_volume" in available else ["volume"])
+    table = pa.concat_tables([pq.read_table(path, columns=columns) for path in files])
+    opens = table["ts_open"].to_numpy()
+    mask = (opens >= start) & (opens < end)
+    close = table["close"].cast(pa.float64()).to_numpy(zero_copy_only=False)[mask]
+    if "quote_volume" in columns:
+        traded = table["quote_volume"].cast(pa.float64()).to_numpy(zero_copy_only=False)[mask]
+    else:
+        traded = close * table["volume"].cast(pa.float64()).to_numpy(zero_copy_only=False)[mask]
+    finite = np.isfinite(close)
+    value = traded[finite & np.isfinite(traded)]
+    return int(finite.sum()), float(np.median(value)) if value.size else 0.0
+
+
+def choose_universe(config, root, available, start, oos_start):
+    stats = {}
+    if config["symbols"]:
+        missing = [symbol for symbol in config["symbols"] if symbol not in available]
+        if missing:
+            fail(f"no {config['interval']} stream for {missing} under {root}")
+        for symbol in config["symbols"]:
+            stats[symbol] = liquidity(Path(root) / available[symbol], start, oos_start)
+        return list(config["symbols"]), stats, "the configured symbols"
+    for symbol, directory in available.items():
+        stats[symbol] = liquidity(Path(root) / directory, start, oos_start)
+    eligible = [symbol for symbol, (bars, _) in stats.items() if bars >= config["min_bars"]]
+    eligible.sort(key=lambda symbol: (-stats[symbol][1], symbol))
+    chosen = eligible[: config["max_instruments"]]
+    if not chosen:
+        fail(f"no instrument has {config['min_bars']} in-sample bars under {root}")
+    rule = (
+        f"the {len(chosen)} instruments with the highest median in-sample traded value among the "
+        f"{len(eligible)} with at least {config['min_bars']} in-sample bars"
+    )
+    return chosen, {symbol: stats[symbol] for symbol in chosen}, rule
+
+
+def load_fields(config, universe, load_start, end):
+    """Every value column of every dataset as (bars, instruments) arrays on the primary dataset's bars."""
+    bar = config["bar_ns"]
+    primary, *others = config["datasets"]
+    keys = [f"{symbol}-{config['suffix']}" for symbol in universe]
+    # Bounds are on the availability time, one bar after the open.
+    dataset = alphax.data.Source(primary["root"], bar_schema(primary), keys).load(start=load_start + bar, end=end + bar)
+    panel = dataset.prepare()
+    fields = {name: np.asarray(getattr(panel, name), dtype=np.float64) for name in OHLCV}
+    for name in primary["values"]:
+        if name not in fields:
+            fields[name] = np.asarray(dataset.asof(panel, field=name), dtype=np.float64)
+    for other in others:
+        present = streams(other["root"], config["suffix"])
+        names = [name for name in other["values"] if name not in fields]
+        wanted = [f"{symbol}-{config['suffix']}" for symbol in universe if symbol in present]
+        if not names or not wanted:
+            continue
+        extra = alphax.data.Source(other["root"], bar_schema(other), wanted).load(start=load_start + bar, end=end + bar)
+        for name in names:
+            fields[name] = np.asarray(extra.asof(panel, field=name), dtype=np.float64)
+    opens = panel.time.astype(np.int64) - bar
+    return opens, fields
+
+
+def regular(opens, fields, load_start, end, bar):
+    """The fields on every bar of [load_start, end), NaN where no instrument traded."""
+    grid = np.arange(load_start, end, bar, dtype=np.int64)
+    rows = np.searchsorted(grid, opens)
+    keep = (rows < len(grid)) & (opens >= load_start) & (opens < end)
+    keep[keep] &= grid[rows[keep]] == opens[keep]
+    out = {}
+    for name, values in fields.items():
+        filled = np.full((len(grid), values.shape[1]), np.nan)
+        filled[rows[keep]] = values[keep]
+        out[name] = filled
+    return grid, out
+
+
+def save(variant, opens, symbols, fields):
+    directory = Path(variant)
+    directory.mkdir(parents=True, exist_ok=True)
+    arrays = {name: np.ascontiguousarray(values) for name, values in fields.items()}
+    np.savez(directory / FILE_NAME, time=opens, symbols=np.array(symbols, dtype=str), **arrays)
+
+
+def describe(opens, symbols):
+    return {"symbols": list(symbols), "bars": len(opens), "start": day(opens[0]), "end": day(opens[-1])}
+
+
+def main():
+    config = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+    Path("meta.json").unlink(missing_ok=True)
+    bar = config["bar_ns"]
+    start, oos_start, end = (nanoseconds(config[key]) for key in ("start", "oos_start", "end"))
+    load_start = start - config["warmup_bars"] * bar
+    primary = config["datasets"][0]
+    available = streams(primary["root"], config["suffix"])
+    if not available:
+        fail(f"no {config['interval']} stream under {primary['root']}")
+
+    universe, stats, rule = choose_universe(config, primary["root"], available, start, oos_start)
+    opens, fields = load_fields(config, universe, load_start, end)
+    opens, fields = regular(opens, fields, load_start, end, bar)
+    for alias, column in config["aliases"].items():
+        if column in fields:
+            fields[alias] = fields[column]
+    traded = np.isfinite(fields["close"]).any(axis=0)
+    if not traded.all():
+        fail(f"no bar in the period for {[s for s, ok in zip(universe, traded) if not ok]}")
+    save("full", opens, universe, fields)
+
+    in_sample = np.flatnonzero((opens >= start) & (opens < oos_start))
+    rows = in_sample[-config["debug_bars"] :]
+    columns = list(range(min(config["debug_instruments"], len(universe))))
+    debug_symbols = [universe[column] for column in columns]
+    debug = {name: values[np.ix_(rows, columns)] for name, values in fields.items()}
+    save("debug", opens[rows], debug_symbols, debug)
+    cut = max(2, int(round(len(rows) * config["cut_fraction"])))
+    save("debug_cut", opens[rows][:cut], debug_symbols, {name: values[:cut] for name, values in debug.items()})
+
+    meta = {
+        "config": config,
+        "interval": config["interval"],
+        "fields": [name for name in fields if name not in config["aliases"]],
+        "aliases": {alias: column for alias, column in config["aliases"].items() if column in fields},
+        "start": config["start"],
+        "oos_start": config["oos_start"],
+        "end": config["end"],
+        "universe": {
+            "rule": rule,
+            "instruments": [
+                {"symbol": symbol, "in_sample_bars": stats[symbol][0], "median_traded_value": stats[symbol][1]}
+                for symbol in universe
+            ],
+        },
+        "full": {**describe(opens, universe), "warmup_bars": int((opens < start).sum())},
+        "debug": describe(opens[rows], debug_symbols),
+        "cut_index": cut,
+        "cut_date": day(opens[rows][cut - 1]),
+    }
+    Path("meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    print(f"exported {len(universe)} instruments x {len(opens)} bars; debug {len(debug_symbols)} x {len(rows)}")
+
+
+if __name__ == "__main__":
+    main()

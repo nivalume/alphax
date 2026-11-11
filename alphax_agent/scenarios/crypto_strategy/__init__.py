@@ -1,7 +1,7 @@
-"""Crypto strategy research: economic hypotheses and the experiment designs that test them.
+"""Crypto strategy research: economic hypotheses, the strategies that test them, coded and backtested with alphax.
 
-Only the hypothesis and the experiment design are implemented; the environment, the coder, the runner, the
-summarizer and the baseline are left empty.
+The data is a jfinance store (``~/.jfinance``); strategies run and are backtested in an interpreter with the
+alphax engine. There is no baseline.
 """
 
 from alphax_agent.scenarios.crypto_strategy.scenario import CryptoStrategyScenario

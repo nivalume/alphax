@@ -67,13 +67,16 @@ class Environment(ABC):
     ) -> EnvResult:
         return self.run([*self.python_command, script, *args], workdir, env=env, timeout=timeout)
 
+    PROBE_PACKAGES: tuple[str, ...] = ("numpy", "pandas", "scipy")
+    """Distributions whose versions :attr:`description` reports; an environment adds its own."""
+
     @cached_property
     def description(self) -> str:
         """Interpreter and key package versions, shown to the agents that write code."""
         probe = (
             "import platform, importlib.metadata as m\n"
             "print('Python', platform.python_version())\n"
-            "for name in ('numpy', 'pandas', 'scipy', 'pyqlib', 'lightgbm'):\n"
+            f"for name in {tuple(self.PROBE_PACKAGES)!r}:\n"
             "    try:\n"
             "        print(name, m.version(name))\n"
             "    except m.PackageNotFoundError:\n"

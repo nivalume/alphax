@@ -8,6 +8,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from alphax_agent.core.promotion import MetricCriterion, MetricGuard, PromotionRule
+from alphax_agent.core.scenario import EnvironmentName, ScenarioSettings
 from alphax_agent.env.qlib import QlibEnvSettings
 
 #: Twenty Alpha158 features used by RD-Agent as the starting feature set.
@@ -63,7 +64,10 @@ class BacktestSettings(BaseModel):
     limit_threshold: float | None = 0.095
 
 
-class QlibFactorSettings(BaseModel):
+class QlibFactorSettings(ScenarioSettings):
+    """The backtest data range is ``data_start``/``data_end`` and the train/valid/test ``segments``."""
+
+    environment: EnvironmentName = "qlib"
     qlib: QlibEnvSettings = Field(default_factory=QlibEnvSettings)
     data_dir: Path = Field(
         default=Path("~/.alphax/agent/data/qlib_factor"), description="Where the exported price-volume files are kept"

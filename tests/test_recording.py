@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 from pydantic import BaseModel
-from support import ScriptedBackend
+from support import ScriptedBackend, SyntheticJFinance
 
 from alphax_agent.agents.agent import Agent
 from alphax_agent.agents.prompt import AgentPrompt
@@ -260,10 +260,16 @@ STRATEGIES = {"strategies": [{"name": "A", "description": "[Mean Reversion] a ru
 
 class TestRunRecord:
     @pytest.fixture
-    def app(self, backend: ScriptedBackend, llm: LLMClient, tmp_path: Path) -> AlphaXApplication:
+    def app(
+        self, backend: ScriptedBackend, llm: LLMClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> AlphaXApplication:
         backend.on("strategy_proposer", lambda request: json.dumps(HYPOTHESIS))
         backend.on("strategy_designer", lambda request: json.dumps(STRATEGIES))
-        scenario = CryptoStrategyScenario(CryptoStrategySettings(data_root_dir=tmp_path / DATA_ROOT))
+        cache = SyntheticJFinance().write_catalog(tmp_path / "cache")
+        options = {"alphax": {"data_dir": str(tmp_path / DATA_ROOT)}, "cache_dir": str(cache)}
+        scenario = CryptoStrategyScenario(CryptoStrategySettings.model_validate(options))
+        # Only the run record is under test: no alphax interpreter, the panels are already there.
+        monkeypatch.setattr(scenario, "prepare", lambda *, force=False: None)
         settings = AlphaXSettings(workflow=WorkflowSettings(run_root=tmp_path / "runs", run_name="r1"))
         return AlphaXApplication(settings, llm=llm, scenario=scenario)
 

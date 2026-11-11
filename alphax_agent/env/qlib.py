@@ -41,6 +41,7 @@ class QlibEnvironment(Environment):
     installation, run a workflow config and read its recorder.
     """
 
+    PROBE_PACKAGES = ("numpy", "pandas", "scipy", "pyqlib", "lightgbm")
     METRICS_FILE = "qlib_metrics.json"
     REPORT_FILE = "portfolio_report.parquet"
     READER_SCRIPT = "alphax_read_results.py"

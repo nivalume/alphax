@@ -199,3 +199,217 @@ df = pd.read_hdf("daily_pv.h5", key="data")
 factor = df["$close"].groupby(level="instrument").pct_change()
 factor.to_frame("value").to_hdf("result.h5", key="data")
 """
+
+
+BAR_SLUG = "binance.vision.market.crypto.bar.raw"
+_DECIMALS = (
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "quote_volume",
+    "taker_buy_base_volume",
+    "taker_buy_quote_volume",
+)
+_DAY_NS = 86_400 * 10**9
+
+
+def bar_schema(slug: str = BAR_SLUG, version: int = 1, extra: tuple[str, ...] = (), annotations: dict | None = None):
+    """A jfinance schema file of a bar dataset, as the pipeline writes it."""
+    columns = [
+        {"name": "instrument_id", "type": "string", "nullable": False},
+        {"name": "bar_type", "type": "string", "nullable": False},
+        *({"name": name, "type": "decimal", "nullable": False, "precision": 38, "scale": 18} for name in _DECIMALS),
+        {"name": "trade_count", "type": "int64", "nullable": False},
+        *({"name": name, "type": "decimal", "nullable": True, "precision": 38, "scale": 18} for name in extra),
+        *(
+            {"name": name, "type": "int64", "nullable": False}
+            for name in ("ts_open", "ts_close", "ts_event", "ts_init")
+        ),
+    ]
+    payload = {
+        "id": f"custom:{slug}:{version}",
+        "slug": slug,
+        "version": version,
+        "name": "SyntheticBar",
+        "description": "Synthetic daily bars.",
+        "stream_fields": {"type": "object", "properties": {"bar_type": {"type": "string"}}, "required": ["bar_type"]},
+        "columns": columns,
+    }
+    if annotations:
+        payload["annotations"] = {"fields": annotations}
+    return payload
+
+
+def event_schema(slug: str = "binance.vision.market.crypto.funding.raw", version: int = 1) -> dict:
+    """A jfinance schema file of an event dataset (funding settlements)."""
+    return {
+        "slug": slug,
+        "version": version,
+        "name": "SyntheticFunding",
+        "stream_fields": {"type": "object", "required": ["instrument_id"]},
+        "columns": [
+            {"name": "instrument_id", "type": "string", "nullable": False},
+            {"name": "funding_rate", "type": "decimal", "nullable": False, "precision": 38, "scale": 18},
+            {"name": "ts_event", "type": "int64", "nullable": False},
+        ],
+    }
+
+
+class SyntheticJFinance:
+    """Daily bars of crypto perpetuals in a jfinance store, with trending prices; the last instrument lists late."""
+
+    def __init__(self, instruments: int = 6, start: str = "2020-01-01", end: str = "2023-12-31", seed: int = 11):
+        self.days = np.arange(np.datetime64(start, "D"), np.datetime64(end, "D") + 1)
+        self.symbols = [f"SYN{index}USDT-PERP.BINANCE" for index in range(instruments)]
+        rng = np.random.default_rng(seed)
+        shape = (len(self.days), instruments)
+        drift = np.repeat(rng.normal(0, 0.004, (shape[0] // 60 + 1, instruments)), 60, axis=0)[: shape[0]]
+        close = 100 * np.exp(np.cumsum(drift + rng.normal(0, 0.03, shape), axis=0))
+        close[: len(self.days) // 3, -1] = np.nan
+        open_ = close * (1 + rng.normal(0, 0.005, shape))
+        volume = rng.lognormal(10, 0.3, shape) * np.linspace(1, 3, instruments)
+        self.bars = {
+            "open": open_,
+            "high": np.fmax(open_, close) * 1.01,
+            "low": np.fmin(open_, close) * 0.99,
+            "close": close,
+            "volume": volume,
+            "quote_volume": volume * close,
+            "taker_buy_base_volume": volume / 2,
+            "taker_buy_quote_volume": volume * close / 2,
+        }
+
+    def write(self, root: Path, market: str = "crypto", slug: str = BAR_SLUG) -> Path:
+        """``<root>/<market>/schemas/<slug>.v1.json`` and one Parquet file per instrument and year."""
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        schemas = root / market / "schemas"
+        schemas.mkdir(parents=True, exist_ok=True)
+        (schemas / f"{slug}.v1.json").write_text(json.dumps(bar_schema(slug)))
+        opens = self.days.astype("datetime64[ns]").astype(np.int64)
+        years = self.days.astype("datetime64[Y]")
+        for column, symbol in enumerate(self.symbols):
+            stream = f"{symbol}-1-DAY-LAST-EXTERNAL"
+            folder = root / market / f"{slug}.v1" / stream
+            folder.mkdir(parents=True, exist_ok=True)
+            for year in np.unique(years):
+                rows = (years == year) & np.isfinite(self.bars["close"][:, column])
+                if not rows.any():
+                    continue
+                decimals = {
+                    name: pa.array(values[rows, column]).cast(pa.decimal128(38, 18), safe=False)
+                    for name, values in self.bars.items()
+                }
+                table = pa.table(
+                    {
+                        "instrument_id": pa.array([symbol] * int(rows.sum())),
+                        "bar_type": pa.array([stream] * int(rows.sum())),
+                        **decimals,
+                        "trade_count": pa.array(np.full(int(rows.sum()), 1000, dtype=np.int64)),
+                        "ts_open": pa.array(opens[rows]),
+                        "ts_close": pa.array(opens[rows] + _DAY_NS - 1_000_000),
+                        "ts_event": pa.array(opens[rows]),
+                        "ts_init": pa.array(opens[rows]),
+                    }
+                )
+                first = f"{year}-01-01".replace("-", "")
+                last = f"{int(str(year)) + 1}0101"
+                pq.write_table(table, folder / f"{first}T000000Z_{last}T000000Z.parquet")
+        return root
+
+    def write_catalog(self, root: Path, debug_instruments: int = 3, debug_bars: int = 300, cut: float = 0.75) -> Path:
+        """Write the panels a StrategyDataCatalog expects, without alphax: 2021 in-sample, 2023 out-of-sample."""
+        opens = self.days.astype("datetime64[ns]").astype(np.int64)
+        fields = {**self.bars, "trade_count": np.full_like(self.bars["close"], 1000.0)}
+        fields["amount"] = fields["quote_volume"]
+        in_sample = np.flatnonzero(
+            (self.days >= np.datetime64("2021-01-01")) & (self.days < np.datetime64("2023-01-01"))
+        )
+        rows = in_sample[-debug_bars:]
+        n_cut = round(len(rows) * cut)
+        columns = list(range(debug_instruments))
+
+        def save(variant: str, times: np.ndarray, symbols: list[str], arrays: dict[str, np.ndarray]) -> None:
+            (root / variant).mkdir(parents=True, exist_ok=True)
+            np.savez(root / variant / "panel.npz", time=times, symbols=np.array(symbols), **arrays)
+
+        def describe(times: np.ndarray, symbols: list[str]) -> dict:
+            start, end = (str(np.datetime64(int(times[i]), "ns").astype("datetime64[D]")) for i in (0, -1))
+            return {"symbols": symbols, "bars": len(times), "start": start, "end": end}
+
+        debug = {name: values[np.ix_(rows, columns)] for name, values in fields.items()}
+        save("full", opens, self.symbols, fields)
+        save("debug", opens[rows], self.symbols[:debug_instruments], debug)
+        save(
+            "debug_cut", opens[rows][:n_cut], self.symbols[:debug_instruments], {k: v[:n_cut] for k, v in debug.items()}
+        )
+        meta = {
+            "config": {},
+            "interval": "1d",
+            "fields": [name for name in fields if name != "amount"],
+            "aliases": {"amount": "quote_volume"},
+            "start": "2021-01-01",
+            "oos_start": "2023-01-01",
+            "end": "2024-01-01",
+            "universe": {
+                "rule": "the synthetic instruments",
+                "instruments": [{"symbol": s, "in_sample_bars": 700, "median_traded_value": 1.0} for s in self.symbols],
+            },
+            "full": {**describe(opens, self.symbols), "warmup_bars": 366},
+            "debug": describe(opens[rows], self.symbols[:debug_instruments]),
+            "cut_index": n_cut,
+            "cut_date": str(self.days[rows][n_cut - 1]),
+        }
+        (root / "meta.json").write_text(json.dumps(meta))
+        return root
+
+
+MOMENTUM_STRATEGY = """
+import numpy as np
+
+PARAMS = {"lookback": 20}
+
+
+def positions(data, lookback):
+    close = data["close"]
+    past = np.full_like(close, np.nan)
+    past[lookback:] = close[:-lookback]
+    return np.sign(close / past - 1.0)
+"""
+
+ALPHAX_MOMENTUM_STRATEGY = """
+import numpy as np
+import alphax
+
+PARAMS = {"fast": 10, "slow": 40}
+
+
+def positions(data, fast, slow):
+    f = alphax.factors(data, fast=f"Mean($close, {fast})", slow=f"Mean($close, {slow})")
+    return np.where(np.isnan(f["slow"]), np.nan, np.sign(f["fast"] - f["slow"]))
+"""
+
+LOOK_AHEAD_STRATEGY = """
+import numpy as np
+
+PARAMS = {}
+
+
+def positions(data):
+    close = data["close"]
+    following = np.vstack([close[1:], close[-1:]])
+    return np.sign(following - close)
+"""
+
+UNBOUNDED_STRATEGY = MOMENTUM_STRATEGY.replace("return np.sign(", "return 3 * np.sign(")
+
+MISSING_FUNCTION_STRATEGY = """
+PARAMS = {}
+
+
+def signal(data):
+    return data["close"]
+"""

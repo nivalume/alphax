@@ -1,5 +1,5 @@
-# alphax-agent run file: crypto strategy hypotheses and experiment designs.
-# Only the hypothesis and the design are implemented; run with `--until design` (see README).
+# alphax-agent run file: crypto strategy research on alphax, with jfinance data.
+# Build the alphax engine first: `uv sync` in the alphax repository, then point alphax.python_bin at its .venv.
 # Every value can be overridden by an environment variable, e.g. ALPHAX_AGENT_LLM__MODEL=deepseek/deepseek-chat.
 
 llm:
@@ -10,6 +10,17 @@ llm:
   # api_base: https://my-gateway.example.com/v1
   # api_key: set ALPHAX_AGENT_LLM__API_KEY instead of writing it here
 
+costeer:
+  policy: ucb                   # ucb | greedy
+  max_rounds: 5
+  max_attempts_per_task: 6
+  num_drafts: 1
+  max_repair_depth: 3
+  target_score: 0.95
+  lesson_limit: 8
+  lesson_store: ~/.alphax/agent/lessons/crypto_strategy.json   # lessons survive across runs
+  max_parallel: 2
+
 workflow:
   max_loops: 20
   max_consecutive_failures: 3
@@ -19,5 +30,40 @@ workflow:
 scenario:
   name: crypto_strategy
   options:
-    data_root_dir: ~/jarvis-data   # schemas under schemas/, rows under crypto/
+    environment: alphax           # the only environment this scenario runs in
+    alphax:
+      python_bin: ../alphax/.venv/bin/python   # interpreter with alphax-trader and pyarrow; relative to the cwd
+      data_dir: ~/.jfinance       # jfinance store: <data_dir>/<market>/schemas, <data_dir>/<market>/<slug>.v<N>/
+      market: crypto
+      interval: 1d                # only daily bars for now; anything else is refused
+      # schema_dir: ~/.jfinance/crypto/schemas   # default: <data_dir>/<market>/schemas
+      schemas:                    # bar datasets given to the agents; each needs rows on disk
+        - binance.vision.market.crypto.bar.raw
+      timeout: 1800               # one export or backtest, seconds
+      threads: 4
+    period:                       # in-sample [start, oos_start) is what the agents see and promotion judges;
+      start: "2021-01-01"         # out-of-sample [oos_start, end) is only written next to each backtest
+      oos_start: "2025-01-01"
+      end: "2026-11-01"
+    universe:
+      # symbols: [BTCUSDT-PERP.BINANCE, ETHUSDT-PERP.BINANCE]   # default: chosen by in-sample liquidity
+      max_instruments: 30
+      min_bars: 365               # in-sample bars an instrument needs to be chosen
+    backtest:
+      init_cash: 10000
+      fees: 0.0005                # fraction of the traded notional
+      slippage: 0.0002            # fraction of the price
+      signal_delay: 1             # a position decided on bar t trades at the close of t+1
+      warmup_bars: 180            # loaded before start to fill windows; not scored
+    debug:                        # the in-sample panel the coder iterates on
+      instruments: 5
+      bars: 500
+      cut_fraction: 0.75          # where the look-ahead check truncates it
+    cache_dir: ~/.alphax/agent/data/crypto_strategy
+    strategy_timeout: 600
     max_strategies_per_experiment: 2   # one mechanism and at most two variants
+    promotion:
+      primary: {metric: is.portfolio.sharpe, min_improvement: 0.0}
+      guards:
+        - {metric: is.portfolio.max_drawdown, tolerance: 0.05}
+    use_critic: true

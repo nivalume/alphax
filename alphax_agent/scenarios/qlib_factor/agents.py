@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 from collections.abc import Iterable, Sequence
 from typing import Any
 
@@ -11,8 +10,9 @@ from pydantic import BaseModel, Field
 from alphax_agent.agents.agent import Agent
 from alphax_agent.agents.tool import Tool
 from alphax_agent.coder.agents import CoderAgent
+from alphax_agent.core.analysis import FeedbackAnalysis, MetricComparison
 from alphax_agent.core.exceptions import OutputParsingError, RunnerError
-from alphax_agent.core.experiment import Experiment, ExperimentResult, Hypothesis
+from alphax_agent.core.experiment import Experiment, Hypothesis
 from alphax_agent.core.feedback import ExperimentFeedback
 from alphax_agent.core.promotion import PromotionRule
 from alphax_agent.core.roles import ExperimentDesigner, HypothesisProposer, Summarizer
@@ -41,37 +41,6 @@ KEY_METRICS = (
 )
 
 
-class MetricComparison:
-    """Side-by-side table of a result and the result it is compared with."""
-
-    def __init__(
-        self,
-        candidate: ExperimentResult | None,
-        reference: ExperimentResult | None,
-        *,
-        labels: tuple[str, str] = ("current best", "this experiment"),
-        metrics: Sequence[str] = KEY_METRICS,
-    ) -> None:
-        self._candidate = candidate
-        self._reference = reference
-        self._labels = labels
-        self._metrics = metrics
-
-    def render(self) -> str:
-        reference_label, candidate_label = self._labels
-        rows = [f"| metric | {reference_label} | {candidate_label} | change |", "|---|---|---|---|"]
-        for metric in self._metrics:
-            old = self._reference.get(metric) if self._reference else None
-            new = self._candidate.get(metric) if self._candidate else None
-            change = f"{new - old:+.4f}" if old is not None and new is not None else "n/a"
-            rows.append(f"| {metric} | {self._format(old)} | {self._format(new)} | {change} |")
-        return "\n".join(rows)
-
-    @staticmethod
-    def _format(value: float | None) -> str:
-        return "n/a" if value is None or not math.isfinite(value) else f"{value:.4f}"
-
-
 class FactorHypothesisAgent(Agent[Hypothesis], HypothesisProposer):
     name = "factor_proposer"
     output_model = Hypothesis
@@ -94,7 +63,7 @@ class FactorHypothesisAgent(Agent[Hypothesis], HypothesisProposer):
             history=trace.render_history(self._history_window),
             library=FactorLibrary(trace).render(),
             best=MetricComparison(
-                trace.reference_result(), trace.baseline, labels=("baseline", "current best")
+                trace.reference_result(), trace.baseline, labels=("baseline", "current best"), metrics=KEY_METRICS
             ).render(),
             loops=len(trace),
             suggestion=last.next_hypothesis if last is not None else "",
@@ -183,14 +152,6 @@ class FactorCriticAgent(Agent[CodeReview]):
         )
 
 
-class FeedbackAnalysis(BaseModel):
-    observations: str = Field(description="What the numbers show, compared with the current best")
-    hypothesis_evaluation: str = Field(description="Whether and why the results support the hypothesis")
-    hypothesis_supported: bool
-    next_hypothesis: str = Field(description="The most promising hypothesis to test next, given this result")
-    reason: str = Field(description="One-paragraph conclusion")
-
-
 class FactorFeedbackAgent(Agent[FeedbackAnalysis], Summarizer):
     """Explains the result; the promotion decision itself is taken by the :class:`PromotionRule`."""
 
@@ -214,7 +175,7 @@ class FactorFeedbackAgent(Agent[FeedbackAnalysis], Summarizer):
             tasks=experiment.render_tasks(),
             included=included,
             notes=experiment.result.notes,
-            comparison=MetricComparison(experiment.result, reference).render(),
+            comparison=MetricComparison(experiment.result, reference, metrics=KEY_METRICS).render(),
             verdict=verdict.reason,
             promoted=verdict.promote,
             history=trace.render_history(4),

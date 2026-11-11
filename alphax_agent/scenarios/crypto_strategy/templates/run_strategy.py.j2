@@ -1,0 +1,197 @@
+"""Runs the strategy in `{{ entry }}` on `{{ panel }}`. Written by alphax-agent: do not edit, it is rewritten.
+
+`python {{ harness }} positions` writes the target positions to `{{ positions }}`.
+`python {{ harness }} backtest {{ config }}` also backtests them with alphax and writes `{{ metrics }}`.
+"""
+
+import importlib.util
+import json
+import math
+import sys
+from pathlib import Path
+
+import numpy as np
+
+PANEL = "{{ panel }}"
+ENTRY = "{{ entry }}"
+POSITIONS = "{{ positions }}"
+METRICS = "{{ metrics }}"
+RESERVED = ("time", "symbols")
+
+
+def fail(message):
+    print(f"ERROR: {message}", file=sys.stderr)
+    sys.exit(2)
+
+
+def load_panel():
+    with np.load(PANEL, allow_pickle=False) as npz:
+        fields = {name: np.asarray(npz[name], dtype=np.float64) for name in npz.files if name not in RESERVED}
+        return fields, np.asarray(npz["time"], dtype=np.int64), [str(symbol) for symbol in npz["symbols"]]
+
+
+def compute_positions(fields):
+    spec = importlib.util.spec_from_file_location("strategy", ENTRY)
+    if spec is None or spec.loader is None:
+        fail(f"{ENTRY} cannot be loaded")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    function = getattr(module, "positions", None)
+    if not callable(function):
+        fail(f"{ENTRY} must define a function positions(data, **params)")
+    params = getattr(module, "PARAMS", {}) or {}
+    if not isinstance(params, dict):
+        fail("PARAMS must be a dict of parameter names to values")
+    shape = fields["close"].shape
+    result = function({name: values.copy() for name, values in fields.items()}, **params)
+    try:
+        array = np.asarray(result, dtype=np.float64)
+    except (TypeError, ValueError) as error:
+        fail(f"positions() must return numbers convertible to a float array: {error}")
+    if array.ndim == 1 and shape[1] == 1:
+        array = array[:, None]
+    if array.shape != shape:
+        fail(f"positions() returned shape {array.shape}; expected {shape} (bars, instruments), like data['close']")
+    print(f"positions: shape {array.shape}, params {params}")
+    return array
+
+
+def executable(positions, close, delay):
+    """Targets clipped to [-1, 1], NaN as flat, delayed by `delay` bars, flat where the instrument has no bar."""
+    weights = np.where(np.isfinite(positions), np.clip(positions, -1.0, 1.0), 0.0)
+    held = np.zeros_like(weights)
+    if delay < len(weights):
+        held[delay:] = weights[: len(weights) - delay]
+    held[~np.isfinite(close)] = 0.0
+    return held
+
+
+def filled(close):
+    """Close carried forward past the last bar and back before the first, so every order has a price."""
+    out = close.copy()
+    for column in range(out.shape[1]):
+        values = out[:, column]
+        valid = np.flatnonzero(np.isfinite(values))
+        if not valid.size:
+            values[:] = 1.0
+            continue
+        values[: valid[0]] = values[valid[0]]
+        index = np.where(np.isfinite(values), np.arange(len(values)), 0)
+        np.maximum.accumulate(index, out=index)
+        out[:, column] = values[index]
+    return out
+
+
+def orders_of(held):
+    """An order only on the bars whose target changes; NaN means no order."""
+    changed = np.vstack([held[:1] != 0.0, np.abs(np.diff(held, axis=0)) > 1e-12])
+    return np.where(changed, held, np.nan)
+
+
+def curve_metrics(returns, ann):
+    returns = returns[np.isfinite(returns)]
+    if returns.size < 2:
+        return {"sharpe": None, "annualized_return": None, "max_drawdown": None, "total_return": None}
+    value = np.cumprod(1.0 + returns)
+    deviation = returns.std(ddof=1)
+    sharpe = float(returns.mean() / deviation * math.sqrt(ann)) if deviation > 0 else None
+    drawdown = value / np.maximum.accumulate(np.maximum(value, 1.0)) - 1.0
+    return {
+        "sharpe": sharpe,
+        "annualized_return": float(value[-1] ** (ann / returns.size) - 1.0) if value[-1] > 0 else -1.0,
+        "max_drawdown": float(max(min(drawdown.min(), 0.0), -1.0)),
+        "total_return": float(value[-1] - 1.0),
+    }
+
+
+def segment_metrics(rows, book, asset_returns, held, listed, order_rows, ann):
+    """Metrics of the bars in `rows`: the book, each instrument before costs, and buy-and-hold."""
+    listed = listed[rows]
+    hold = np.where(listed & np.isfinite(asset_returns[rows]), asset_returns[rows], np.nan)
+    hold_count = np.isfinite(hold).sum(axis=1)
+    benchmark = np.where(hold_count > 0, np.nansum(hold, axis=1) / np.maximum(hold_count, 1), np.nan)
+    held_rows = held[rows]
+    # What each instrument's position earned over each bar, before costs: the position set at the previous close.
+    before = np.vstack([np.zeros((1, held.shape[1])), held[:-1]])[rows]
+    gross = np.where(np.isfinite(hold), before * np.nan_to_num(hold), np.nan)
+    sharpes = []
+    for column in range(held.shape[1]):
+        series = gross[:, column][np.isfinite(gross[:, column])]
+        if series.size >= 2 and np.any(before[:, column] != 0.0) and series.std(ddof=1) > 0:
+            sharpes.append(series.mean() / series.std(ddof=1) * math.sqrt(ann))
+    change = np.abs(np.diff(held, axis=0, prepend=0.0))[rows]
+    metrics = {f"portfolio.{key}": value for key, value in curve_metrics(book[rows], ann).items()}
+    metrics.update({f"benchmark.{key}": value for key, value in curve_metrics(benchmark, ann).items()})
+    metrics.update(
+        {
+            "sharpe_median": float(np.median(sharpes)) if sharpes else None,
+            "positive_sharpe_share": float(np.mean(np.asarray(sharpes) > 0)) if sharpes else None,
+            "trade_count": int(np.isin(order_rows, rows).sum()),
+            "turnover": float(change[listed].mean()) if listed.any() else None,
+            "exposure": float(np.abs(held_rows[listed]).mean()) if listed.any() else None,
+            "long_share": float((held_rows[listed] > 0).mean()) if listed.any() else None,
+            "short_share": float((held_rows[listed] < 0).mean()) if listed.any() else None,
+            "bars": int((listed.sum(axis=1) > 0).sum()),
+        }
+    )
+    return metrics
+
+
+def backtest(fields, times, symbols, positions, config):
+    """One account for the whole book: each instrument trades position / N of its equity, N the instruments
+    with a bar, so the gross exposure is at most 1."""
+    import alphax
+
+    close = fields["close"]
+    held = executable(positions, close, int(config["signal_delay"]))
+    listed = np.isfinite(close)
+    weights = held / np.maximum(listed.sum(axis=1, keepdims=True), 1)
+    portfolio = alphax.from_orders(
+        filled(close),
+        orders_of(weights),
+        size_type="targetpercent",
+        direction="both",
+        fees=float(config["fees"]),
+        slippage=float(config["slippage"]),
+        init_cash=float(config["init_cash"]),
+        ann_factor=float(config["ann_factor"]),
+        threads=int(config["threads"]),
+        cash_sharing=True,
+        group_lens=[close.shape[1]],
+        call_seq="auto",
+    )
+    book = np.asarray(portfolio.returns(group=0), dtype=np.float64)
+    previous = np.vstack([np.full((1, close.shape[1]), np.nan), close[:-1]])
+    asset_returns = close / previous - 1.0
+    order_rows = np.asarray(portfolio.orders()["idx"], dtype=np.int64)
+    ann = float(config["ann_factor"])
+    segments = {
+        "is": np.flatnonzero((times >= config["start_ns"]) & (times < config["oos_start_ns"])),
+        "oos": np.flatnonzero((times >= config["oos_start_ns"]) & (times < config["end_ns"])),
+    }
+    result = {
+        name: segment_metrics(rows, book, asset_returns, held, listed, order_rows, ann)
+        for name, rows in segments.items()
+        if rows.size
+    }
+    result["instruments"] = symbols
+    Path(METRICS).write_text(json.dumps(result, indent=2), encoding="utf-8")
+    summary = result.get("is", {})
+    print(
+        f"in-sample: sharpe {summary.get('portfolio.sharpe')}, return {summary.get('portfolio.annualized_return')}, "
+        f"drawdown {summary.get('portfolio.max_drawdown')}, trades {summary.get('trade_count')}"
+    )
+
+
+def main():
+    if len(sys.argv) < 2 or sys.argv[1] not in ("positions", "backtest"):
+        fail(f"usage: python {Path(__file__).name} positions | backtest CONFIG")
+    fields, times, symbols = load_panel()
+    positions = compute_positions(fields)
+    np.save(POSITIONS, positions)
+    if sys.argv[1] == "backtest":
+        backtest(fields, times, symbols, positions, json.loads(Path(sys.argv[2]).read_text(encoding="utf-8")))
+
+
+if __name__ == "__main__":
+    main()
