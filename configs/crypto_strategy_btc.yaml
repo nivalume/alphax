@@ -1,0 +1,55 @@
+# alphax-agent run file: crypto strategy research on BTCUSDT-PERP alone, daily bars from 2020.
+# The LLM model and key come from .env (ALPHAX_AGENT_LLM__*), which take precedence over this file.
+
+llm:
+  temperature: 0.2
+  max_retries: 4
+  cache_dir: ~/.alphax/agent/llm_cache
+
+costeer:
+  policy: ucb
+  max_rounds: 4
+  max_attempts_per_task: 5
+  num_drafts: 1
+  max_repair_depth: 3
+  target_score: 0.95
+  lesson_limit: 8
+  lesson_store: ~/.alphax/agent/lessons/crypto_strategy_btc.json
+  max_parallel: 2
+
+workflow:
+  max_loops: 3
+  max_consecutive_failures: 3
+  history_window: 8
+  run_root: alphax_runs
+
+scenario:
+  name: crypto_strategy
+  options:
+    environment: alphax
+    alphax:
+      python_bin: ../alphax/.venv/bin/python
+      data_dir: ~/.jfinance
+      interval: 1d
+      schemas: [binance.vision.market.crypto.bar.raw]
+      timeout: 1800
+      threads: 1
+    period:                       # the data starts on 2020-01-01; 2025 onwards is held out
+      start: "2020-01-01"
+      oos_start: "2025-01-01"
+      end: "2026-11-09"
+    universe:
+      symbols: [BTCUSDT-PERP.BINANCE]
+    backtest:
+      init_cash: 10000
+      fees: 0.0005
+      slippage: 0.0002
+      signal_delay: 1
+      warmup_bars: 0              # there is no data before 2020; windows fill inside the period
+    debug:
+      bars: 500
+      cut_fraction: 0.75
+    cache_dir: ~/.alphax/agent/data/crypto_strategy_btc
+    strategy_timeout: 600
+    max_strategies_per_experiment: 2
+    use_critic: true
